@@ -1,0 +1,190 @@
+server:
+  port: ${PORT:8081}
+  servlet:
+    context-path: /api/auth
+
+spring:
+  application:
+    name: auth-service
+
+  # PostgreSQL Database
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:quckchat_auth}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:password}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  # Flyway Migrations
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  # Redis for Session & Rate Limiting
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 10000
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+
+  # Kafka
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: auth-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+  # OAuth2 Providers
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: email, profile
+          apple:
+            client-id: ${APPLE_CLIENT_ID:}
+            client-secret: ${APPLE_CLIENT_SECRET:}
+            scope: email, name
+          facebook:
+            client-id: ${FACEBOOK_CLIENT_ID:}
+            client-secret: ${FACEBOOK_CLIENT_SECRET:}
+            scope: email, public_profile
+
+  # Mail Configuration
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-in-production-must-be-at-least-32-chars}
+  access-token-expiration: ${JWT_ACCESS_EXPIRATION:900000}      # 15 minutes
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days
+  issuer: quckchat-auth
+
+# Security Configuration
+security:
+  # Rate Limiting
+  rate-limit:
+    enabled: true
+    login:
+      max-attempts: 5
+      window-seconds: 300        # 5 minutes
+      block-duration-seconds: 900 # 15 minutes
+    api:
+      requests-per-minute: 100
+      requests-per-hour: 1000
+
+  # IP Whitelist (optional)
+  ip-whitelist:
+    enabled: ${IP_WHITELIST_ENABLED:false}
+    allowed-ips: ${IP_WHITELIST:}
+
+  # Session Management
+  session:
+    max-sessions-per-user: 5
+    session-timeout-minutes: 30
+
+  # Password Policy
+  password:
+    min-length: 8
+    require-uppercase: true
+    require-lowercase: true
+    require-digit: true
+    require-special: true
+    max-age-days: 90
+
+  # 2FA Configuration
+  two-factor:
+    enabled: true
+    issuer: QuckChat
+    code-length: 6
+    time-step-seconds: 30
+
+  # Audit Logging
+  audit:
+    enabled: true
+    log-successful-auth: true
+    log-failed-auth: true
+    log-token-operations: true
+
+  # Encryption
+  encryption:
+    algorithm: AES/GCM/NoPadding
+    key: ${ENCRYPTION_KEY:your-32-char-encryption-key-here}
+
+# API Keys Configuration
+api-keys:
+  enabled: true
+  header-name: X-API-Key
+  internal-services:
+    - name: nestjs-backend
+      key: ${NESTJS_API_KEY:}
+      permissions: [READ_USER, VALIDATE_TOKEN]
+    - name: elixir-realtime
+      key: ${ELIXIR_API_KEY:}
+      permissions: [READ_USER, VALIDATE_TOKEN]
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# Logging
+logging:
+  level:
+    com.quckchat.auth: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# OpenAPI Documentation
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method

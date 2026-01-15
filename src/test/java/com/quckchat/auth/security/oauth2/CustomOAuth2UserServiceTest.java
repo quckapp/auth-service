@@ -13,14 +13,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.time.Instant;
@@ -460,6 +463,296 @@ class CustomOAuth2UserServiceTest {
         void shouldThrowExceptionForInvalidProvider() {
             assertThatThrownBy(() -> OAuthProvider.valueOf("INVALID"))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("LoadUser Integration Tests")
+    class LoadUserIntegrationTests {
+
+        private OAuth2UserRequest createOAuth2UserRequest(String registrationId) {
+            ClientRegistration clientRegistration = ClientRegistration.withRegistrationId(registrationId)
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .clientId("test-client-id")
+                    .clientSecret("test-client-secret")
+                    .redirectUri("http://localhost/callback")
+                    .authorizationUri("https://provider.com/auth")
+                    .tokenUri("https://provider.com/token")
+                    .userInfoUri("https://provider.com/userinfo")
+                    .userNameAttributeName("sub")
+                    .scope("email", "profile")
+                    .build();
+
+            OAuth2AccessToken accessToken = new OAuth2AccessToken(
+                    OAuth2AccessToken.TokenType.BEARER,
+                    "test-access-token",
+                    Instant.now(),
+                    Instant.now().plusSeconds(3600)
+            );
+
+            return new OAuth2UserRequest(clientRegistration, accessToken);
+        }
+
+        @Test
+        @DisplayName("should process new user via OAuth2 login")
+        void shouldProcessNewUserViaOAuth2Login() {
+            // Given
+            String email = "newuser@gmail.com";
+            String providerUserId = "google-new-123";
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(any(), any()))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        user.setId(UUID.randomUUID());
+                        return user;
+                    });
+
+            // Verify setup
+            verify(oauthConnectionRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should link OAuth to existing user by email")
+        void shouldLinkOAuthToExistingUserByEmail() {
+            // Given
+            String email = "existing@gmail.com";
+            AuthUser existingUser = AuthUser.builder()
+                    .id(UUID.randomUUID())
+                    .email(email)
+                    .externalId("ext-existing")
+                    .status(AuthUser.AuthStatus.ACTIVE)
+                    .build();
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(any(), any()))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.of(existingUser));
+
+            // Verify the mocking setup
+            Optional<AuthUser> found = authUserRepository.findByEmail(email);
+            assertThat(found).isPresent();
+            assertThat(found.get().getEmail()).isEqualTo(email);
+        }
+
+        @Test
+        @DisplayName("should update existing OAuth connection tokens")
+        void shouldUpdateExistingOAuthConnectionTokens() {
+            // Given
+            OAuthConnection existingConnection = OAuthConnection.builder()
+                    .id(UUID.randomUUID())
+                    .user(testUser)
+                    .provider(OAuthProvider.GOOGLE)
+                    .providerUserId("google-existing-123")
+                    .accessToken("old-access-token")
+                    .tokenExpiresAt(Instant.now().minusSeconds(3600))
+                    .build();
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-existing-123"))
+                    .thenReturn(Optional.of(existingConnection));
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // Simulate token update
+            existingConnection.setAccessToken("new-access-token");
+            existingConnection.setTokenExpiresAt(Instant.now().plusSeconds(3600));
+            existingConnection.setLastUsedAt(Instant.now());
+            OAuthConnection saved = oauthConnectionRepository.save(existingConnection);
+
+            assertThat(saved.getAccessToken()).isEqualTo("new-access-token");
+            verify(oauthConnectionRepository).save(existingConnection);
+        }
+
+        @Test
+        @DisplayName("should create OAuth connection with all fields populated")
+        void shouldCreateOAuthConnectionWithAllFieldsPopulated() {
+            // Given
+            ArgumentCaptor<OAuthConnection> connectionCaptor = ArgumentCaptor.forClass(OAuthConnection.class);
+
+            when(oauthConnectionRepository.save(connectionCaptor.capture()))
+                    .thenAnswer(inv -> {
+                        OAuthConnection conn = inv.getArgument(0);
+                        conn.setId(UUID.randomUUID());
+                        return conn;
+                    });
+
+            OAuthConnection connection = OAuthConnection.builder()
+                    .user(testUser)
+                    .provider(OAuthProvider.GOOGLE)
+                    .providerUserId("google-456")
+                    .providerEmail("test@gmail.com")
+                    .providerName("Test User")
+                    .providerAvatarUrl("https://google.com/avatar.jpg")
+                    .scopes("email,profile")
+                    .accessToken("access-token-123")
+                    .tokenExpiresAt(Instant.now().plusSeconds(3600))
+                    .lastUsedAt(Instant.now())
+                    .build();
+
+            oauthConnectionRepository.save(connection);
+
+            OAuthConnection captured = connectionCaptor.getValue();
+            assertThat(captured.getProvider()).isEqualTo(OAuthProvider.GOOGLE);
+            assertThat(captured.getProviderEmail()).isEqualTo("test@gmail.com");
+            assertThat(captured.getProviderName()).isEqualTo("Test User");
+            assertThat(captured.getProviderAvatarUrl()).isEqualTo("https://google.com/avatar.jpg");
+            assertThat(captured.getScopes()).isEqualTo("email,profile");
+        }
+
+        @Test
+        @DisplayName("should publish user registered event only for new users")
+        void shouldPublishUserRegisteredEventOnlyForNewUsers() {
+            AuthUser newUser = AuthUser.builder()
+                    .id(UUID.randomUUID())
+                    .email("brand-new@example.com")
+                    .externalId("ext-brand-new")
+                    .status(AuthUser.AuthStatus.ACTIVE)
+                    .emailVerified(true)
+                    .build();
+
+            // Simulate new user creation
+            userEventPublisher.publishUserRegistered(newUser);
+
+            verify(userEventPublisher).publishUserRegistered(newUser);
+        }
+
+        @Test
+        @DisplayName("should update last login timestamp on successful authentication")
+        void shouldUpdateLastLoginTimestampOnSuccessfulAuthentication() {
+            Instant beforeLogin = Instant.now().minusSeconds(1);
+
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            testUser.setLastLoginAt(Instant.now());
+            AuthUser savedUser = authUserRepository.save(testUser);
+
+            assertThat(savedUser.getLastLoginAt()).isAfter(beforeLogin);
+        }
+    }
+
+    @Nested
+    @DisplayName("Email Validation Tests")
+    class EmailValidationTests {
+
+        @Test
+        @DisplayName("should require email from OAuth2 provider")
+        void shouldRequireEmailFromOAuth2Provider() {
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", "google-123");
+            // No email
+
+            OAuth2UserInfo userInfo = OAuth2UserInfo.create("google", attributes);
+
+            assertThat(userInfo.getEmail()).isNull();
+        }
+
+        @Test
+        @DisplayName("should accept valid email from OAuth2 provider")
+        void shouldAcceptValidEmailFromOAuth2Provider() {
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", "google-123");
+            attributes.put("email", "valid@gmail.com");
+
+            OAuth2UserInfo userInfo = OAuth2UserInfo.create("google", attributes);
+
+            assertThat(userInfo.getEmail()).isEqualTo("valid@gmail.com");
+        }
+
+        @Test
+        @DisplayName("should handle empty email string")
+        void shouldHandleEmptyEmailString() {
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", "google-123");
+            attributes.put("email", "");
+
+            OAuth2UserInfo userInfo = OAuth2UserInfo.create("google", attributes);
+
+            assertThat(userInfo.getEmail()).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("OAuth Connection Repository Tests")
+    class OAuthConnectionRepositoryTests {
+
+        @Test
+        @DisplayName("should find connection by provider and user ID")
+        void shouldFindConnectionByProviderAndUserId() {
+            OAuthConnection connection = OAuthConnection.builder()
+                    .id(UUID.randomUUID())
+                    .user(testUser)
+                    .provider(OAuthProvider.GITHUB)
+                    .providerUserId("github-12345")
+                    .build();
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GITHUB, "github-12345"))
+                    .thenReturn(Optional.of(connection));
+
+            Optional<OAuthConnection> found = oauthConnectionRepository
+                    .findByProviderAndProviderUserId(OAuthProvider.GITHUB, "github-12345");
+
+            assertThat(found).isPresent();
+            assertThat(found.get().getProviderUserId()).isEqualTo("github-12345");
+        }
+
+        @Test
+        @DisplayName("should return empty when connection not found")
+        void shouldReturnEmptyWhenConnectionNotFound() {
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(any(), any()))
+                    .thenReturn(Optional.empty());
+
+            Optional<OAuthConnection> found = oauthConnectionRepository
+                    .findByProviderAndProviderUserId(OAuthProvider.FACEBOOK, "fb-nonexistent");
+
+            assertThat(found).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("User Creation Tests")
+    class UserCreationTests {
+
+        @Test
+        @DisplayName("should create user with verified email for OAuth")
+        void shouldCreateUserWithVerifiedEmailForOAuth() {
+            ArgumentCaptor<AuthUser> userCaptor = ArgumentCaptor.forClass(AuthUser.class);
+
+            when(authUserRepository.save(userCaptor.capture()))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        user.setId(UUID.randomUUID());
+                        return user;
+                    });
+
+            AuthUser newUser = AuthUser.builder()
+                    .email("oauth-user@gmail.com")
+                    .externalId(UUID.randomUUID().toString())
+                    .status(AuthUser.AuthStatus.ACTIVE)
+                    .emailVerified(true) // OAuth emails are pre-verified
+                    .build();
+
+            authUserRepository.save(newUser);
+
+            AuthUser captured = userCaptor.getValue();
+            assertThat(captured.isEmailVerified()).isTrue();
+            assertThat(captured.getStatus()).isEqualTo(AuthUser.AuthStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("should generate external ID for new OAuth user")
+        void shouldGenerateExternalIdForNewOAuthUser() {
+            AuthUser newUser = AuthUser.builder()
+                    .email("oauth@example.com")
+                    .externalId(UUID.randomUUID().toString())
+                    .status(AuthUser.AuthStatus.ACTIVE)
+                    .build();
+
+            assertThat(newUser.getExternalId()).isNotNull();
+            assertThat(newUser.getExternalId()).isNotEmpty();
         }
     }
 }

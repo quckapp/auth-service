@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoginHistoryRepository.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.domain.repository</a> &gt; <span class="el_source">LoginHistoryRepository.java</span></div><h1>LoginHistoryRepository.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.domain.repository;
+
+import com.quckapp.auth.domain.entity.LoginHistory;
+import com.quckapp.auth.domain.entity.LoginMethod;
+import com.quckapp.auth.domain.entity.LoginStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Repository for LoginHistory entity operations
+ */
+@Repository
+public interface LoginHistoryRepository extends JpaRepository&lt;LoginHistory, UUID&gt; {
+
+    // Find by user
+    List&lt;LoginHistory&gt; findByUserId(UUID userId);
+
+    Page&lt;LoginHistory&gt; findByUserId(UUID userId, Pageable pageable);
+
+    List&lt;LoginHistory&gt; findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    Page&lt;LoginHistory&gt; findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+
+    // Find by email (for failed login attempts where user may not exist)
+    List&lt;LoginHistory&gt; findByEmail(String email);
+
+    Page&lt;LoginHistory&gt; findByEmailOrderByCreatedAtDesc(String email, Pageable pageable);
+
+    // Find by status
+    List&lt;LoginHistory&gt; findByLoginStatus(LoginStatus loginStatus);
+
+    Page&lt;LoginHistory&gt; findByUserIdAndLoginStatus(UUID userId, LoginStatus loginStatus, Pageable pageable);
+
+    // Find by IP
+    List&lt;LoginHistory&gt; findByIpAddress(String ipAddress);
+
+    Page&lt;LoginHistory&gt; findByIpAddressOrderByCreatedAtDesc(String ipAddress, Pageable pageable);
+
+    // Find recent logins
+    @Query(&quot;SELECT lh FROM LoginHistory lh WHERE lh.user.id = :userId AND lh.createdAt &gt; :since ORDER BY lh.createdAt DESC&quot;)
+    List&lt;LoginHistory&gt; findRecentByUserId(@Param(&quot;userId&quot;) UUID userId, @Param(&quot;since&quot;) Instant since);
+
+    // Find last successful login
+    @Query(&quot;SELECT lh FROM LoginHistory lh WHERE lh.user.id = :userId AND lh.loginStatus = 'SUCCESS' ORDER BY lh.createdAt DESC&quot;)
+    List&lt;LoginHistory&gt; findLastSuccessfulLogin(@Param(&quot;userId&quot;) UUID userId, Pageable pageable);
+
+    default Optional&lt;LoginHistory&gt; findLastSuccessfulLoginByUserId(UUID userId) {
+<span class="nc" id="L58">        List&lt;LoginHistory&gt; results = findLastSuccessfulLogin(userId, Pageable.ofSize(1));</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));</span>
+    }
+
+    // Count failed attempts
+    @Query(&quot;SELECT COUNT(lh) FROM LoginHistory lh WHERE lh.email = :email AND lh.loginStatus != 'SUCCESS' AND lh.createdAt &gt; :since&quot;)
+    int countFailedAttemptsSince(@Param(&quot;email&quot;) String email, @Param(&quot;since&quot;) Instant since);
+
+    @Query(&quot;SELECT COUNT(lh) FROM LoginHistory lh WHERE lh.ipAddress = :ip AND lh.loginStatus != 'SUCCESS' AND lh.createdAt &gt; :since&quot;)
+    int countFailedAttemptsFromIpSince(@Param(&quot;ip&quot;) String ip, @Param(&quot;since&quot;) Instant since);
+
+    // Find suspicious logins
+    @Query(&quot;SELECT lh FROM LoginHistory lh WHERE lh.user.id = :userId AND (lh.isVpn = true OR lh.isTor = true OR lh.isProxy = true OR lh.riskScore &gt; :riskThreshold) ORDER BY lh.createdAt DESC&quot;)
+    List&lt;LoginHistory&gt; findSuspiciousLoginsByUserId(@Param(&quot;userId&quot;) UUID userId, @Param(&quot;riskThreshold&quot;) int riskThreshold);
+
+    @Query(&quot;SELECT lh FROM LoginHistory lh WHERE lh.riskScore &gt; :threshold ORDER BY lh.createdAt DESC&quot;)
+    Page&lt;LoginHistory&gt; findHighRiskLogins(@Param(&quot;threshold&quot;) int threshold, Pageable pageable);
+
+    // Find by device
+    List&lt;LoginHistory&gt; findByDeviceId(String deviceId);
+
+    @Query(&quot;SELECT DISTINCT lh.deviceId FROM LoginHistory lh WHERE lh.user.id = :userId AND lh.deviceId IS NOT NULL&quot;)
+    List&lt;String&gt; findDistinctDeviceIdsByUserId(@Param(&quot;userId&quot;) UUID userId);
+
+    // Find by country
+    List&lt;LoginHistory&gt; findByCountryCode(String countryCode);
+
+    @Query(&quot;SELECT DISTINCT lh.countryCode FROM LoginHistory lh WHERE lh.user.id = :userId AND lh.countryCode IS NOT NULL&quot;)
+    List&lt;String&gt; findDistinctCountriesByUserId(@Param(&quot;userId&quot;) UUID userId);
+
+    // Statistics
+    @Query(&quot;SELECT lh.loginStatus, COUNT(lh) FROM LoginHistory lh WHERE lh.createdAt &gt; :since GROUP BY lh.loginStatus&quot;)
+    List&lt;Object[]&gt; countByLoginStatusSince(@Param(&quot;since&quot;) Instant since);
+
+    @Query(&quot;SELECT lh.loginMethod, COUNT(lh) FROM LoginHistory lh WHERE lh.createdAt &gt; :since AND lh.loginStatus = 'SUCCESS' GROUP BY lh.loginMethod&quot;)
+    List&lt;Object[]&gt; countSuccessfulByLoginMethodSince(@Param(&quot;since&quot;) Instant since);
+
+    @Query(&quot;SELECT lh.countryCode, COUNT(lh) FROM LoginHistory lh WHERE lh.createdAt &gt; :since AND lh.countryCode IS NOT NULL GROUP BY lh.countryCode ORDER BY COUNT(lh) DESC&quot;)
+    List&lt;Object[]&gt; countByCountrySince(@Param(&quot;since&quot;) Instant since);
+
+    @Query(&quot;SELECT DATE(lh.createdAt), COUNT(lh) FROM LoginHistory lh WHERE lh.createdAt &gt; :since GROUP BY DATE(lh.createdAt) ORDER BY DATE(lh.createdAt)&quot;)
+    List&lt;Object[]&gt; countDailyLoginsSince(@Param(&quot;since&quot;) Instant since);
+
+    // Cleanup
+    @Modifying
+    @Query(&quot;DELETE FROM LoginHistory lh WHERE lh.createdAt &lt; :threshold&quot;)
+    int deleteOlderThan(@Param(&quot;threshold&quot;) Instant threshold);
+
+    @Query(&quot;SELECT COUNT(lh) FROM LoginHistory lh WHERE lh.user.id = :userId&quot;)
+    long countByUserId(@Param(&quot;userId&quot;) UUID userId);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

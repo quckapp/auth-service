@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TwoFactorServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.service.impl</a> &gt; <span class="el_source">TwoFactorServiceImpl.java</span></div><h1>TwoFactorServiceImpl.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.service.impl;
+
+import com.quckapp.auth.domain.entity.AuthUser;
+import com.quckapp.auth.domain.repository.AuthUserRepository;
+import com.quckapp.auth.dto.*;
+import com.quckapp.auth.security.jwt.JwtOperations;
+import com.quckapp.auth.service.TwoFactorService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+@Transactional
+@RequiredArgsConstructor
+<span class="fc" id="L22">@Slf4j</span>
+public class TwoFactorServiceImpl implements TwoFactorService {
+
+    private final AuthUserRepository authUserRepository;
+    private final JwtOperations jwtService;
+
+<span class="fc" id="L28">    private static final SecureRandom SECURE_RANDOM = new SecureRandom();</span>
+    private static final int SECRET_SIZE = 20;
+    private static final int BACKUP_CODE_COUNT = 10;
+    private static final String ISSUER = &quot;QuckApp&quot;;
+
+    @Override
+    public TwoFactorSetupResponse setupTwoFactor(String token) {
+<span class="fc" id="L35">        AuthUser user = getUserFromToken(token);</span>
+
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (user.isTwoFactorEnabled()) {</span>
+<span class="fc" id="L38">            throw new RuntimeException(&quot;Two-factor authentication is already enabled&quot;);</span>
+        }
+
+        // Generate a new secret
+<span class="fc" id="L42">        byte[] secretBytes = new byte[SECRET_SIZE];</span>
+<span class="fc" id="L43">        SECURE_RANDOM.nextBytes(secretBytes);</span>
+<span class="fc" id="L44">        String secret = Base64.getEncoder().encodeToString(secretBytes);</span>
+
+        // Store the secret temporarily (will be confirmed when enabling)
+<span class="fc" id="L47">        user.setTwoFactorSecret(secret);</span>
+<span class="fc" id="L48">        authUserRepository.save(user);</span>
+
+        // Generate OTP Auth URL for QR code
+<span class="fc" id="L51">        String otpAuthUrl = String.format(</span>
+                &quot;otpauth://totp/%s:%s?secret=%s&amp;issuer=%s&amp;algorithm=SHA1&amp;digits=6&amp;period=30&quot;,
+<span class="fc" id="L53">                ISSUER, user.getEmail(), secret, ISSUER</span>
+        );
+
+        // In production, generate actual QR code URL using a QR service
+<span class="fc" id="L57">        String qrCodeUrl = &quot;https://chart.googleapis.com/chart?chs=200x200&amp;chld=M|0&amp;cht=qr&amp;chl=&quot; +</span>
+<span class="fc" id="L58">                java.net.URLEncoder.encode(otpAuthUrl, java.nio.charset.StandardCharsets.UTF_8);</span>
+
+<span class="fc" id="L60">        return TwoFactorSetupResponse.builder()</span>
+<span class="fc" id="L61">                .secret(secret)</span>
+<span class="fc" id="L62">                .qrCodeUrl(qrCodeUrl)</span>
+<span class="fc" id="L63">                .otpAuthUrl(otpAuthUrl)</span>
+<span class="fc" id="L64">                .build();</span>
+    }
+
+    @Override
+    public TwoFactorEnableResponse enableTwoFactor(String token, TwoFactorEnableRequest request, ClientInfo clientInfo) {
+<span class="fc" id="L69">        AuthUser user = getUserFromToken(token);</span>
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (user.isTwoFactorEnabled()) {</span>
+<span class="fc" id="L72">            throw new RuntimeException(&quot;Two-factor authentication is already enabled&quot;);</span>
+        }
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (user.getTwoFactorSecret() == null) {</span>
+<span class="fc" id="L76">            throw new RuntimeException(&quot;Please setup 2FA first&quot;);</span>
+        }
+
+        // Verify the TOTP code
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (!verifyTotpCode(user.getTwoFactorSecret(), request.getCode())) {</span>
+<span class="fc" id="L81">            throw new RuntimeException(&quot;Invalid verification code&quot;);</span>
+        }
+
+        // Generate backup codes
+<span class="fc" id="L85">        Set&lt;String&gt; backupCodes = generateBackupCodes();</span>
+
+<span class="fc" id="L87">        user.setTwoFactorEnabled(true);</span>
+<span class="fc" id="L88">        user.setBackupCodes(backupCodes);</span>
+<span class="fc" id="L89">        authUserRepository.save(user);</span>
+
+<span class="fc" id="L91">        log.info(&quot;2FA enabled for user: {}&quot;, user.getEmail());</span>
+
+<span class="fc" id="L93">        return TwoFactorEnableResponse.builder()</span>
+<span class="fc" id="L94">                .enabled(true)</span>
+<span class="fc" id="L95">                .backupCodes(backupCodes)</span>
+<span class="fc" id="L96">                .build();</span>
+    }
+
+    @Override
+    public void disableTwoFactor(String token, TwoFactorDisableRequest request, ClientInfo clientInfo) {
+<span class="fc" id="L101">        AuthUser user = getUserFromToken(token);</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (!user.isTwoFactorEnabled()) {</span>
+<span class="fc" id="L104">            throw new RuntimeException(&quot;Two-factor authentication is not enabled&quot;);</span>
+        }
+
+        // Verify the TOTP code before disabling
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (!verifyTotpCode(user.getTwoFactorSecret(), request.getCode())) {</span>
+<span class="fc" id="L109">            throw new RuntimeException(&quot;Invalid verification code&quot;);</span>
+        }
+
+<span class="fc" id="L112">        user.setTwoFactorEnabled(false);</span>
+<span class="fc" id="L113">        user.setTwoFactorSecret(null);</span>
+<span class="fc" id="L114">        user.setBackupCodes(new HashSet&lt;&gt;());</span>
+<span class="fc" id="L115">        authUserRepository.save(user);</span>
+
+<span class="fc" id="L117">        log.info(&quot;2FA disabled for user: {}&quot;, user.getEmail());</span>
+<span class="fc" id="L118">    }</span>
+
+    @Override
+    public BackupCodesResponse generateBackupCodes(String token, TwoFactorVerifyRequest request, ClientInfo clientInfo) {
+<span class="fc" id="L122">        AuthUser user = getUserFromToken(token);</span>
+
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (!user.isTwoFactorEnabled()) {</span>
+<span class="fc" id="L125">            throw new RuntimeException(&quot;Two-factor authentication is not enabled&quot;);</span>
+        }
+
+        // Verify the TOTP code before generating new backup codes
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if (!verifyTotpCode(user.getTwoFactorSecret(), request.getCode())) {</span>
+<span class="fc" id="L130">            throw new RuntimeException(&quot;Invalid verification code&quot;);</span>
+        }
+
+<span class="fc" id="L133">        Set&lt;String&gt; backupCodes = generateBackupCodes();</span>
+<span class="fc" id="L134">        user.setBackupCodes(backupCodes);</span>
+<span class="fc" id="L135">        authUserRepository.save(user);</span>
+
+<span class="fc" id="L137">        log.info(&quot;New backup codes generated for user: {}&quot;, user.getEmail());</span>
+
+<span class="fc" id="L139">        return BackupCodesResponse.builder()</span>
+<span class="fc" id="L140">                .backupCodes(backupCodes)</span>
+<span class="fc" id="L141">                .build();</span>
+    }
+
+    private AuthUser getUserFromToken(String token) {
+<span class="fc" id="L145">        String userId = jwtService.extractUserId(token);</span>
+<span class="fc" id="L146">        return authUserRepository.findById(UUID.fromString(userId))</span>
+<span class="fc" id="L147">                .orElseThrow(() -&gt; new RuntimeException(&quot;User not found&quot;));</span>
+    }
+
+    private Set&lt;String&gt; generateBackupCodes() {
+<span class="fc" id="L151">        Set&lt;String&gt; codes = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        for (int i = 0; i &lt; BACKUP_CODE_COUNT; i++) {</span>
+<span class="fc" id="L153">            codes.add(generateBackupCode());</span>
+        }
+<span class="fc" id="L155">        return codes;</span>
+    }
+
+    private String generateBackupCode() {
+<span class="fc" id="L159">        int code = SECURE_RANDOM.nextInt(90000000) + 10000000; // 8-digit code</span>
+<span class="fc" id="L160">        String formatted = String.valueOf(code);</span>
+<span class="fc" id="L161">        return formatted.substring(0, 4) + &quot;-&quot; + formatted.substring(4); // Format: XXXX-XXXX</span>
+    }
+
+    private boolean verifyTotpCode(String secret, String code) {
+        // TODO: Implement proper TOTP verification using a library like GoogleAuth
+        // For now, accept any 6-digit code for testing
+<span class="pc bpc" id="L167" title="1 of 4 branches missed.">        if (code == null || code.length() != 6) {</span>
+<span class="fc" id="L168">            return false;</span>
+        }
+        try {
+<span class="fc" id="L171">            Integer.parseInt(code);</span>
+<span class="fc" id="L172">            return true; // Accept any 6-digit number for testing</span>
+<span class="nc" id="L173">        } catch (NumberFormatException e) {</span>
+<span class="nc" id="L174">            return false;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

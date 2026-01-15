@@ -1,6 +1,6 @@
-package com.quckchat.auth.dto;
+package com.quckapp.auth.dto;
 
-import com.quckchat.auth.domain.entity.*;
+import com.quckapp.auth.domain.entity.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 

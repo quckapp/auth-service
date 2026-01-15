@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.config</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.config;
+
+import com.quckapp.auth.security.oauth2.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableWebSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOidcUserService customOidcUserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+    private final HttpCookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
+
+<span class="nc" id="L26">    private static final String[] PUBLIC_ENDPOINTS = {</span>
+            // Phone OTP Authentication
+            &quot;/v1/auth/phone/**&quot;,
+            // Standard Auth (Controller at /v1)
+            &quot;/v1/login&quot;,
+            &quot;/v1/login/2fa&quot;,
+            &quot;/v1/register&quot;,
+            &quot;/v1/token/refresh&quot;,
+            &quot;/v1/token/validate&quot;,
+            &quot;/v1/password/forgot&quot;,
+            &quot;/v1/password/reset&quot;,
+            &quot;/v1/oauth/**&quot;,
+            // OAuth2 endpoints
+            &quot;/oauth2/**&quot;,
+            &quot;/login/oauth2/**&quot;,
+            // Health &amp; Actuator
+            &quot;/actuator/**&quot;,
+            &quot;/health&quot;,
+            // API Docs
+            &quot;/v3/api-docs/**&quot;,
+            &quot;/swagger-ui/**&quot;,
+            &quot;/swagger-ui.html&quot;
+    };
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+<span class="nc" id="L52">        return http</span>
+<span class="nc" id="L53">                .csrf(AbstractHttpConfigurer::disable)</span>
+<span class="nc" id="L54">                .sessionManagement(session -&gt; session</span>
+<span class="nc" id="L55">                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))</span>
+<span class="nc" id="L56">                .authorizeHttpRequests(auth -&gt; auth</span>
+<span class="nc" id="L57">                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()</span>
+<span class="nc" id="L58">                        .anyRequest().authenticated())</span>
+<span class="nc" id="L59">                .oauth2Login(oauth2 -&gt; oauth2</span>
+<span class="nc" id="L60">                        .authorizationEndpoint(authorization -&gt; authorization</span>
+<span class="nc" id="L61">                                .baseUri(&quot;/oauth2/authorize&quot;)</span>
+<span class="nc" id="L62">                                .authorizationRequestRepository(authorizationRequestRepository))</span>
+<span class="nc" id="L63">                        .redirectionEndpoint(redirection -&gt; redirection</span>
+<span class="nc" id="L64">                                .baseUri(&quot;/login/oauth2/code/*&quot;))</span>
+<span class="nc" id="L65">                        .userInfoEndpoint(userInfo -&gt; userInfo</span>
+<span class="nc" id="L66">                                .userService(customOAuth2UserService)</span>
+<span class="nc" id="L67">                                .oidcUserService(customOidcUserService))</span>
+<span class="nc" id="L68">                        .successHandler(oAuth2AuthenticationSuccessHandler)</span>
+<span class="nc" id="L69">                        .failureHandler(oAuth2AuthenticationFailureHandler))</span>
+<span class="nc" id="L70">                .build();</span>
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+<span class="nc" id="L75">        return new BCryptPasswordEncoder();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

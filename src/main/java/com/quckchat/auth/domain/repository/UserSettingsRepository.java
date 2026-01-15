@@ -1,6 +1,6 @@
-package com.quckchat.auth.domain.repository;
+package com.quckapp.auth.domain.repository;
 
-import com.quckchat.auth.domain.entity.UserSettings;
+import com.quckapp.auth.domain.entity.UserSettings;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

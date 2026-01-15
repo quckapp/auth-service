@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateLimitExceededException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.security.ratelimit</a> &gt; <span class="el_source">RateLimitExceededException.java</span></div><h1>RateLimitExceededException.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.security.ratelimit;
+
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+/**
+ * Exception thrown when rate limit is exceeded
+ */
+@ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+@Getter
+public class RateLimitExceededException extends RuntimeException {
+
+    private final long retryAfterSeconds;
+    private final String limitType;
+    private final boolean blocked;
+
+    public RateLimitExceededException(String message, long retryAfterSeconds) {
+<span class="fc" id="L19">        this(message, retryAfterSeconds, &quot;api&quot;, false);</span>
+<span class="fc" id="L20">    }</span>
+
+    public RateLimitExceededException(String message, long retryAfterSeconds, String limitType, boolean blocked) {
+<span class="fc" id="L23">        super(message);</span>
+<span class="fc" id="L24">        this.retryAfterSeconds = retryAfterSeconds;</span>
+<span class="fc" id="L25">        this.limitType = limitType;</span>
+<span class="fc" id="L26">        this.blocked = blocked;</span>
+<span class="fc" id="L27">    }</span>
+
+    public static RateLimitExceededException apiLimit(long retryAfterSeconds) {
+<span class="fc" id="L30">        return new RateLimitExceededException(</span>
+                &quot;API rate limit exceeded. Please try again later.&quot;,
+                retryAfterSeconds,
+                &quot;api&quot;,
+                false
+        );
+    }
+
+    public static RateLimitExceededException loginLimit(long retryAfterSeconds) {
+<span class="fc" id="L39">        return new RateLimitExceededException(</span>
+                &quot;Too many login attempts. Please try again later.&quot;,
+                retryAfterSeconds,
+                &quot;login&quot;,
+                false
+        );
+    }
+
+    public static RateLimitExceededException loginBlocked(long retryAfterSeconds) {
+<span class="fc" id="L48">        return new RateLimitExceededException(</span>
+                &quot;Account temporarily locked due to too many failed login attempts.&quot;,
+                retryAfterSeconds,
+                &quot;login&quot;,
+                true
+        );
+    }
+
+    public static RateLimitExceededException ipLimit(long retryAfterSeconds) {
+<span class="fc" id="L57">        return new RateLimitExceededException(</span>
+                &quot;Too many requests from this IP address.&quot;,
+                retryAfterSeconds,
+                &quot;ip&quot;,
+                false
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

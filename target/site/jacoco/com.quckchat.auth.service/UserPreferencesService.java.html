@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserPreferencesService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.service</a> &gt; <span class="el_source">UserPreferencesService.java</span></div><h1>UserPreferencesService.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.service;
+
+import com.quckapp.auth.domain.entity.*;
+import com.quckapp.auth.domain.repository.*;
+import com.quckapp.auth.dto.UserPreferencesDtos.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Service for User Preferences management
+ */
+@Service
+@Transactional
+@RequiredArgsConstructor
+<span class="nc" id="L22">@Slf4j</span>
+public class UserPreferencesService {
+
+    private final UserNotificationPreferencesRepository notificationRepository;
+    private final UserSecurityPreferencesRepository securityRepository;
+    private final TrustedDeviceRepository trustedDeviceRepository;
+    private final AuthUserRepository authUserRepository;
+
+    // ==================== Combined Preferences ====================
+
+    @Transactional(readOnly = true)
+    public UserPreferencesDto getUserPreferences(UUID userId) {
+<span class="nc" id="L34">        NotificationPreferencesDto notifications = getNotificationPreferences(userId);</span>
+<span class="nc" id="L35">        SecurityPreferencesDto security = getSecurityPreferences(userId);</span>
+<span class="nc" id="L36">        List&lt;TrustedDeviceDto&gt; trustedDevices = getTrustedDevices(userId);</span>
+
+<span class="nc" id="L38">        return UserPreferencesDto.builder()</span>
+<span class="nc" id="L39">                .userId(userId)</span>
+<span class="nc" id="L40">                .notificationPreferences(notifications)</span>
+<span class="nc" id="L41">                .securityPreferences(security)</span>
+<span class="nc" id="L42">                .trustedDevices(trustedDevices)</span>
+<span class="nc" id="L43">                .build();</span>
+    }
+
+    // ==================== Notification Preferences ====================
+
+    @Transactional(readOnly = true)
+    public NotificationPreferencesDto getNotificationPreferences(UUID userId) {
+<span class="nc" id="L50">        return notificationRepository.findByUserId(userId)</span>
+<span class="nc" id="L51">                .map(NotificationPreferencesDto::from)</span>
+<span class="nc" id="L52">                .orElseGet(() -&gt; createDefaultNotificationPreferences(userId));</span>
+    }
+
+    public NotificationPreferencesDto createDefaultNotificationPreferences(UUID userId) {
+<span class="nc" id="L56">        log.info(&quot;Creating default notification preferences for user: {}&quot;, userId);</span>
+
+<span class="nc" id="L58">        AuthUser user = authUserRepository.findById(userId)</span>
+<span class="nc" id="L59">                .orElseThrow(() -&gt; new RuntimeException(&quot;User not found: &quot; + userId));</span>
+
+<span class="nc" id="L61">        UserNotificationPreferences prefs = UserNotificationPreferences.builder()</span>
+<span class="nc" id="L62">                .user(user)</span>
+<span class="nc" id="L63">                .build();</span>
+
+<span class="nc" id="L65">        prefs = notificationRepository.save(prefs);</span>
+<span class="nc" id="L66">        log.info(&quot;Default notification preferences created for user: {}&quot;, userId);</span>
+<span class="nc" id="L67">        return NotificationPreferencesDto.from(prefs);</span>
+    }
+
+    public NotificationPreferencesDto updateNotificationPreferences(UUID userId, UpdateNotificationPreferencesRequest request) {
+<span class="nc" id="L71">        log.info(&quot;Updating notification preferences for user: {}&quot;, userId);</span>
+
+<span class="nc" id="L73">        UserNotificationPreferences prefs = notificationRepository.findByUserId(userId)</span>
+<span class="nc" id="L74">                .orElseGet(() -&gt; {</span>
+<span class="nc" id="L75">                    AuthUser user = authUserRepository.findById(userId)</span>
+<span class="nc" id="L76">                            .orElseThrow(() -&gt; new RuntimeException(&quot;User not found: &quot; + userId));</span>
+<span class="nc" id="L77">                    return UserNotificationPreferences.builder().user(user).build();</span>
+                });
+
+        // Update email preferences
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (request.getEmailMarketing() != null) prefs.setEmailMarketing(request.getEmailMarketing());</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (request.getEmailSecurityAlerts() != null) prefs.setEmailSecurityAlerts(request.getEmailSecurityAlerts());</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (request.getEmailLoginAlerts() != null) prefs.setEmailLoginAlerts(request.getEmailLoginAlerts());</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (request.getEmailWeeklyDigest() != null) prefs.setEmailWeeklyDigest(request.getEmailWeeklyDigest());</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if (request.getEmailProductUpdates() != null) prefs.setEmailProductUpdates(request.getEmailProductUpdates());</span>
+
+        // Update push preferences
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (request.getPushDirectMessages() != null) prefs.setPushDirectMessages(request.getPushDirectMessages());</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">        if (request.getPushMentions() != null) prefs.setPushMentions(request.getPushMentions());</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (request.getPushReplies() != null) prefs.setPushReplies(request.getPushReplies());</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        if (request.getPushLikes() != null) prefs.setPushLikes(request.getPushLikes());</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (request.getPushFollows() != null) prefs.setPushFollows(request.getPushFollows());</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (request.getPushSystemAlerts() != null) prefs.setPushSystemAlerts(request.getPushSystemAlerts());</span>
+
+        // Update quiet hours
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (request.getQuietHoursEnabled() != null) prefs.setQuietHoursEnabled(request.getQuietHoursEnabled());</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (request.getQuietHoursStart() != null) prefs.setQuietHoursStart(request.getQuietHoursStart());</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (request.getQuietHoursEnd() != null) prefs.setQuietHoursEnd(request.getQuietHoursEnd());</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        if (request.getQuietHoursTimezone() != null) prefs.setQuietHoursTimezone(request.getQuietHoursTimezone());</span>
+
+        // Update SMS preferences
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (request.getSmsEnabled() != null) prefs.setSmsEnabled(request.getSmsEnabled());</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if (request.getSmsSecurityOnly() != null) prefs.setSmsSecurityOnly(request.getSmsSecurityOnly());</span>
+
+<span class="nc" id="L105">        prefs = notificationRepository.save(prefs);</span>
+<span class="nc" id="L106">        log.info(&quot;Notification preferences updated for user: {}&quot;, userId);</span>
+<span class="nc" id="L107">        return NotificationPreferencesDto.from(prefs);</span>
+    }
+
+    // ==================== Security Preferences ====================
+
+    @Transactional(readOnly = true)
+    public SecurityPreferencesDto getSecurityPreferences(UUID userId) {
+<span class="nc" id="L114">        return securityRepository.findByUserId(userId)</span>
+<span class="nc" id="L115">                .map(SecurityPreferencesDto::from)</span>
+<span class="nc" id="L116">                .orElseGet(() -&gt; createDefaultSecurityPreferences(userId));</span>
+    }
+
+    public SecurityPreferencesDto createDefaultSecurityPreferences(UUID userId) {
+<span class="nc" id="L120">        log.info(&quot;Creating default security preferences for user: {}&quot;, userId);</span>
+
+<span class="nc" id="L122">        AuthUser user = authUserRepository.findById(userId)</span>
+<span class="nc" id="L123">                .orElseThrow(() -&gt; new RuntimeException(&quot;User not found: &quot; + userId));</span>
+
+<span class="nc" id="L125">        UserSecurityPreferences prefs = UserSecurityPreferences.builder()</span>
+<span class="nc" id="L126">                .user(user)</span>
+<span class="nc" id="L127">                .build();</span>
+
+<span class="nc" id="L129">        prefs = securityRepository.save(prefs);</span>
+<span class="nc" id="L130">        log.info(&quot;Default security preferences created for user: {}&quot;, userId);</span>
+<span class="nc" id="L131">        return SecurityPreferencesDto.from(prefs);</span>
+    }
+
+    public SecurityPreferencesDto updateSecurityPreferences(UUID userId, UpdateSecurityPreferencesRequest request) {
+<span class="nc" id="L135">        log.info(&quot;Updating security preferences for user: {}&quot;, userId);</span>
+
+<span class="nc" id="L137">        UserSecurityPreferences prefs = securityRepository.findByUserId(userId)</span>
+<span class="nc" id="L138">                .orElseGet(() -&gt; {</span>
+<span class="nc" id="L139">                    AuthUser user = authUserRepository.findById(userId)</span>
+<span class="nc" id="L140">                            .orElseThrow(() -&gt; new RuntimeException(&quot;User not found: &quot; + userId));</span>
+<span class="nc" id="L141">                    return UserSecurityPreferences.builder().user(user).build();</span>
+                });
+
+        // Update login security
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if (request.getRequire2faForSensitiveActions() != null) {</span>
+<span class="nc" id="L146">            prefs.setRequire2faForSensitiveActions(request.getRequire2faForSensitiveActions());</span>
+        }
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (request.getLoginNotificationEnabled() != null) {</span>
+<span class="nc" id="L149">            prefs.setLoginNotificationEnabled(request.getLoginNotificationEnabled());</span>
+        }
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if (request.getNewDeviceNotification() != null) {</span>
+<span class="nc" id="L152">            prefs.setNewDeviceNotification(request.getNewDeviceNotification());</span>
+        }
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        if (request.getSuspiciousActivityNotification() != null) {</span>
+<span class="nc" id="L155">            prefs.setSuspiciousActivityNotification(request.getSuspiciousActivityNotification());</span>
+        }
+
+        // Update session preferences
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (request.getSessionTimeoutMinutes() != null) {</span>
+<span class="nc" id="L160">            prefs.setSessionTimeoutMinutes(request.getSessionTimeoutMinutes());</span>
+        }
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        if (request.getMaxConcurrentSessions() != null) {</span>
+<span class="nc" id="L163">            prefs.setMaxConcurrentSessions(request.getMaxConcurrentSessions());</span>
+        }
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (request.getRememberTrustedDevices() != null) {</span>
+<span class="nc" id="L166">            prefs.setRememberTrustedDevices(request.getRememberTrustedDevices());</span>
+        }
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        if (request.getTrustedDeviceExpiryDays() != null) {</span>
+<span class="nc" id="L169">            prefs.setTrustedDeviceExpiryDays(request.getTrustedDeviceExpiryDays());</span>
+        }
+
+        // Update password preferences
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (request.getPasswordExpiryDays() != null) {</span>
+<span class="nc" id="L174">            prefs.setPasswordExpiryDays(request.getPasswordExpiryDays());</span>
+        }
+
+        // Update IP restrictions
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if (request.getIpWhitelistEnabled() != null) {</span>
+<span class="nc" id="L179">            prefs.setIpWhitelistEnabled(request.getIpWhitelistEnabled());</span>
+        }
+
+<span class="nc" id="L182">        prefs = securityRepository.save(prefs);</span>
+<span class="nc" id="L183">        log.info(&quot;Security preferences updated for user: {}&quot;, userId);</span>
+<span class="nc" id="L184">        return SecurityPreferencesDto.from(prefs);</span>
+    }
+
+    // ==================== IP Whitelist Management ====================
+
+    public void addIpToWhitelist(UUID userId, String ipAddress) {
+<span class="nc" id="L190">        log.info(&quot;Adding IP {} to whitelist for user: {}&quot;, ipAddress, userId);</span>
+
+<span class="nc" id="L192">        UserSecurityPreferences prefs = securityRepository.findByUserId(userId)</span>
+<span class="nc" id="L193">                .orElseThrow(() -&gt; new RuntimeException(&quot;Security preferences not found for user: &quot; + userId));</span>
+
+<span class="nc" id="L195">        prefs.getIpWhitelist().add(ipAddress);</span>
+<span class="nc" id="L196">        securityRepository.save(prefs);</span>
+
+<span class="nc" id="L198">        log.info(&quot;IP added to whitelist for user: {}&quot;, userId);</span>
+<span class="nc" id="L199">    }</span>
+
+    public void removeIpFromWhitelist(UUID userId, String ipAddress) {
+<span class="nc" id="L202">        log.info(&quot;Removing IP {} from whitelist for user: {}&quot;, ipAddress, userId);</span>
+
+<span class="nc" id="L204">        UserSecurityPreferences prefs = securityRepository.findByUserId(userId)</span>
+<span class="nc" id="L205">                .orElseThrow(() -&gt; new RuntimeException(&quot;Security preferences not found for user: &quot; + userId));</span>
+
+<span class="nc" id="L207">        prefs.getIpWhitelist().remove(ipAddress);</span>
+<span class="nc" id="L208">        securityRepository.save(prefs);</span>
+
+<span class="nc" id="L210">        log.info(&quot;IP removed from whitelist for user: {}&quot;, userId);</span>
+<span class="nc" id="L211">    }</span>
+
+    @Transactional(readOnly = true)
+    public boolean isIpAllowed(UUID userId, String ipAddress) {
+<span class="nc" id="L215">        return securityRepository.findByUserId(userId)</span>
+<span class="nc" id="L216">                .map(prefs -&gt; prefs.isIpAllowed(ipAddress))</span>
+<span class="nc" id="L217">                .orElse(true); // Allow by default if no preferences exist</span>
+    }
+
+    // ==================== Trusted Devices ====================
+
+    @Transactional(readOnly = true)
+    public List&lt;TrustedDeviceDto&gt; getTrustedDevices(UUID userId) {
+<span class="nc" id="L224">        return trustedDeviceRepository.findActiveTrustedDevicesByUserId(userId).stream()</span>
+<span class="nc" id="L225">                .map(TrustedDeviceDto::from)</span>
+<span class="nc" id="L226">                .collect(Collectors.toList());</span>
+    }
+
+    public TrustedDeviceDto trustDevice(UUID userId, TrustDeviceRequest request) {
+<span class="nc" id="L230">        log.info(&quot;Trusting device for user: {}&quot;, userId);</span>
+
+<span class="nc" id="L232">        AuthUser user = authUserRepository.findById(userId)</span>
+<span class="nc" id="L233">                .orElseThrow(() -&gt; new RuntimeException(&quot;User not found: &quot; + userId));</span>
+
+        // Check if device already trusted
+<span class="nc" id="L236">        Optional&lt;TrustedDevice&gt; existing = trustedDeviceRepository</span>
+<span class="nc" id="L237">                .findByUserIdAndDeviceFingerprint(userId, request.getDeviceFingerprint());</span>
+
+        TrustedDevice device;
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        if (existing.isPresent()) {</span>
+            // Reactivate existing device
+<span class="nc" id="L242">            device = existing.get();</span>
+<span class="nc" id="L243">            device.setTrusted(true);</span>
+<span class="nc" id="L244">            device.setTrustedAt(Instant.now());</span>
+<span class="nc" id="L245">            device.setLastUsedAt(Instant.now());</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">            if (request.getExpiryDays() != null) {</span>
+<span class="nc" id="L247">                device.setExpiresAt(Instant.now().plus(request.getExpiryDays(), ChronoUnit.DAYS));</span>
+            }
+        } else {
+            // Get expiry days from user preferences or use default
+<span class="nc bnc" id="L251" title="All 2 branches missed.">            int expiryDays = request.getExpiryDays() != null ? request.getExpiryDays() :</span>
+<span class="nc" id="L252">                    securityRepository.findByUserId(userId)</span>
+<span class="nc" id="L253">                            .map(UserSecurityPreferences::getTrustedDeviceExpiryDays)</span>
+<span class="nc" id="L254">                            .orElse(30);</span>
+
+<span class="nc" id="L256">            device = TrustedDevice.builder()</span>
+<span class="nc" id="L257">                    .user(user)</span>
+<span class="nc" id="L258">                    .deviceFingerprint(request.getDeviceFingerprint())</span>
+<span class="nc" id="L259">                    .deviceName(request.getDeviceName())</span>
+<span class="nc" id="L260">                    .deviceType(request.getDeviceType())</span>
+<span class="nc" id="L261">                    .osName(request.getOsName())</span>
+<span class="nc" id="L262">                    .browserName(request.getBrowserName())</span>
+<span class="nc" id="L263">                    .isTrusted(true)</span>
+<span class="nc" id="L264">                    .expiresAt(Instant.now().plus(expiryDays, ChronoUnit.DAYS))</span>
+<span class="nc" id="L265">                    .build();</span>
+        }
+
+<span class="nc" id="L268">        device = trustedDeviceRepository.save(device);</span>
+<span class="nc" id="L269">        log.info(&quot;Device trusted for user: {}&quot;, userId);</span>
+<span class="nc" id="L270">        return TrustedDeviceDto.from(device);</span>
+    }
+
+    public void revokeTrustedDevice(UUID userId, UUID deviceId) {
+<span class="nc" id="L274">        log.info(&quot;Revoking trusted device {} for user: {}&quot;, deviceId, userId);</span>
+<span class="nc" id="L275">        trustedDeviceRepository.revokeTrust(deviceId);</span>
+<span class="nc" id="L276">        log.info(&quot;Device trust revoked&quot;);</span>
+<span class="nc" id="L277">    }</span>
+
+    public void revokeAllTrustedDevices(UUID userId) {
+<span class="nc" id="L280">        log.info(&quot;Revoking all trusted devices for user: {}&quot;, userId);</span>
+<span class="nc" id="L281">        trustedDeviceRepository.revokeAllTrustedDevices(userId);</span>
+<span class="nc" id="L282">        log.info(&quot;All devices revoked for user: {}&quot;, userId);</span>
+<span class="nc" id="L283">    }</span>
+
+    public void revokeOtherTrustedDevices(UUID userId, UUID currentDeviceId) {
+<span class="nc" id="L286">        log.info(&quot;Revoking other trusted devices for user: {}&quot;, userId);</span>
+<span class="nc" id="L287">        trustedDeviceRepository.revokeOtherTrustedDevices(userId, currentDeviceId);</span>
+<span class="nc" id="L288">        log.info(&quot;Other devices revoked for user: {}&quot;, userId);</span>
+<span class="nc" id="L289">    }</span>
+
+    @Transactional(readOnly = true)
+    public boolean isDeviceTrusted(UUID userId, String deviceFingerprint) {
+<span class="nc" id="L293">        return trustedDeviceRepository.isDeviceTrusted(userId, deviceFingerprint);</span>
+    }
+
+    public void updateTrustedDeviceLastUsed(UUID userId, String deviceFingerprint) {
+<span class="nc" id="L297">        trustedDeviceRepository.findValidTrustedDevice(userId, deviceFingerprint)</span>
+<span class="nc" id="L298">                .ifPresent(device -&gt; {</span>
+<span class="nc" id="L299">                    device.updateLastUsed();</span>
+<span class="nc" id="L300">                    trustedDeviceRepository.save(device);</span>
+<span class="nc" id="L301">                });</span>
+<span class="nc" id="L302">    }</span>
+
+    // ==================== Maintenance ====================
+
+    public int revokeExpiredTrustedDevices() {
+<span class="nc" id="L307">        log.info(&quot;Revoking expired trusted devices&quot;);</span>
+<span class="nc" id="L308">        int count = trustedDeviceRepository.revokeExpiredDevices();</span>
+<span class="nc" id="L309">        log.info(&quot;Revoked {} expired trusted devices&quot;, count);</span>
+<span class="nc" id="L310">        return count;</span>
+    }
+
+    public int deleteExpiredTrustedDevices(int daysAfterExpiry) {
+<span class="nc" id="L314">        Instant threshold = Instant.now().minus(daysAfterExpiry, ChronoUnit.DAYS);</span>
+<span class="nc" id="L315">        log.info(&quot;Deleting trusted devices expired more than {} days ago&quot;, daysAfterExpiry);</span>
+<span class="nc" id="L316">        int count = trustedDeviceRepository.deleteExpiredDevices(threshold);</span>
+<span class="nc" id="L317">        log.info(&quot;Deleted {} expired trusted devices&quot;, count);</span>
+<span class="nc" id="L318">        return count;</span>
+    }
+
+    // ==================== Notification Helpers ====================
+
+    @Transactional(readOnly = true)
+    public List&lt;UUID&gt; findUsersWithSecurityAlertsEnabled() {
+<span class="nc" id="L325">        return notificationRepository.findUserIdsWithSecurityAlertsEnabled();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;UUID&gt; findUsersWithLoginAlertsEnabled() {
+<span class="nc" id="L330">        return notificationRepository.findUserIdsWithLoginAlertsEnabled();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public boolean shouldSendNotification(UUID userId, String notificationType) {
+<span class="nc" id="L335">        return notificationRepository.findByUserId(userId)</span>
+<span class="nc" id="L336">                .map(prefs -&gt; {</span>
+<span class="nc bnc" id="L337" title="All 22 branches missed.">                    switch (notificationType.toLowerCase()) {</span>
+                        case &quot;security_alert&quot;:
+<span class="nc" id="L339">                            return prefs.isEmailSecurityAlerts();</span>
+                        case &quot;login_alert&quot;:
+<span class="nc" id="L341">                            return prefs.isEmailLoginAlerts();</span>
+                        case &quot;marketing&quot;:
+<span class="nc" id="L343">                            return prefs.isEmailMarketing();</span>
+                        case &quot;weekly_digest&quot;:
+<span class="nc" id="L345">                            return prefs.isEmailWeeklyDigest();</span>
+                        case &quot;product_update&quot;:
+<span class="nc" id="L347">                            return prefs.isEmailProductUpdates();</span>
+                        default:
+<span class="nc" id="L349">                            return true;</span>
+                    }
+                })
+<span class="nc" id="L352">                .orElse(true); // Default to sending if no preferences</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

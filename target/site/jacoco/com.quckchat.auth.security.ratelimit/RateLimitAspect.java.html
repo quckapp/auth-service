@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateLimitAspect.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.security.ratelimit</a> &gt; <span class="el_source">RateLimitAspect.java</span></div><h1>RateLimitAspect.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.security.ratelimit;
+
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.lang.reflect.Method;
+
+/**
+ * AOP Aspect for enforcing @RateLimit annotation
+ */
+@Aspect
+@Component
+@RequiredArgsConstructor
+<span class="fc" id="L24">@Slf4j</span>
+public class RateLimitAspect {
+
+    private final RateLimitOperations rateLimitService;
+    private final RateLimitConfig config;
+
+    @Around(&quot;@annotation(com.quckapp.auth.security.ratelimit.RateLimit)&quot;)
+    public Object enforceRateLimit(ProceedingJoinPoint joinPoint) throws Throwable {
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (!config.isEnabled()) {</span>
+<span class="fc" id="L33">            return joinPoint.proceed();</span>
+        }
+
+<span class="fc" id="L36">        MethodSignature signature = (MethodSignature) joinPoint.getSignature();</span>
+<span class="fc" id="L37">        Method method = signature.getMethod();</span>
+<span class="fc" id="L38">        RateLimit rateLimit = method.getAnnotation(RateLimit.class);</span>
+
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if (rateLimit == null) {</span>
+<span class="fc" id="L41">            return joinPoint.proceed();</span>
+        }
+
+        // Skip for authenticated users if configured
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">        if (rateLimit.skipAuthenticated() &amp;&amp; isAuthenticated()) {</span>
+<span class="fc" id="L46">            return joinPoint.proceed();</span>
+        }
+
+        // Build rate limit key
+<span class="fc" id="L50">        String key = buildKey(rateLimit, method);</span>
+
+        // Check rate limit
+<span class="fc" id="L53">        RateLimitResult result = rateLimitService.checkRateLimit(</span>
+                key,
+<span class="fc" id="L55">                rateLimit.requests(),</span>
+<span class="fc" id="L56">                rateLimit.window()</span>
+        );
+
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        if (result.isDenied()) {</span>
+<span class="fc" id="L60">            log.warn(&quot;Rate limit exceeded for key: {} on method: {}&quot;, key, method.getName());</span>
+<span class="fc" id="L61">            throw new RateLimitExceededException(</span>
+<span class="fc" id="L62">                    rateLimit.message(),</span>
+<span class="fc" id="L63">                    result.getRetryAfterSeconds()</span>
+            );
+        }
+
+<span class="fc" id="L67">        return joinPoint.proceed();</span>
+    }
+
+    /**
+     * Build the rate limit key based on annotation configuration
+     */
+    private String buildKey(RateLimit rateLimit, Method method) {
+<span class="fc" id="L74">        StringBuilder keyBuilder = new StringBuilder();</span>
+
+        // Add custom prefix if provided
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (!rateLimit.keyPrefix().isEmpty()) {</span>
+<span class="fc" id="L78">            keyBuilder.append(rateLimit.keyPrefix()).append(&quot;:&quot;);</span>
+        }
+
+        // Add key type specific part
+<span class="pc bpc" id="L82" title="3 of 7 branches missed.">        switch (rateLimit.key()) {</span>
+<span class="fc" id="L83">            case IP -&gt; keyBuilder.append(&quot;ip:&quot;).append(getClientIp());</span>
+
+            case USER -&gt; {
+<span class="fc" id="L86">                String userId = getCurrentUserId();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">                if (userId != null) {</span>
+<span class="fc" id="L88">                    keyBuilder.append(&quot;user:&quot;).append(userId);</span>
+                } else {
+<span class="fc" id="L90">                    keyBuilder.append(&quot;ip:&quot;).append(getClientIp());</span>
+                }
+<span class="fc" id="L92">            }</span>
+
+            case API_KEY -&gt; {
+<span class="fc" id="L95">                String apiKey = getApiKey();</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">                if (apiKey != null) {</span>
+<span class="fc" id="L97">                    keyBuilder.append(&quot;apikey:&quot;).append(apiKey);</span>
+                } else {
+<span class="fc" id="L99">                    keyBuilder.append(&quot;ip:&quot;).append(getClientIp());</span>
+                }
+<span class="fc" id="L101">            }</span>
+
+<span class="fc" id="L103">            case IP_ENDPOINT -&gt; keyBuilder.append(&quot;ip:&quot;)</span>
+<span class="fc" id="L104">                    .append(getClientIp())</span>
+<span class="fc" id="L105">                    .append(&quot;:&quot;)</span>
+<span class="fc" id="L106">                    .append(method.getDeclaringClass().getSimpleName())</span>
+<span class="fc" id="L107">                    .append(&quot;.&quot;)</span>
+<span class="fc" id="L108">                    .append(method.getName());</span>
+
+            case USER_ENDPOINT -&gt; {
+<span class="nc" id="L111">                String userId = getCurrentUserId();</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">                if (userId != null) {</span>
+<span class="nc" id="L113">                    keyBuilder.append(&quot;user:&quot;).append(userId);</span>
+                } else {
+<span class="nc" id="L115">                    keyBuilder.append(&quot;ip:&quot;).append(getClientIp());</span>
+                }
+<span class="nc" id="L117">                keyBuilder.append(&quot;:&quot;)</span>
+<span class="nc" id="L118">                        .append(method.getDeclaringClass().getSimpleName())</span>
+<span class="nc" id="L119">                        .append(&quot;.&quot;)</span>
+<span class="nc" id="L120">                        .append(method.getName());</span>
+<span class="nc" id="L121">            }</span>
+
+<span class="nc" id="L123">            case GLOBAL -&gt; keyBuilder.append(&quot;global:&quot;)</span>
+<span class="nc" id="L124">                    .append(method.getDeclaringClass().getSimpleName())</span>
+<span class="nc" id="L125">                    .append(&quot;.&quot;)</span>
+<span class="nc" id="L126">                    .append(method.getName());</span>
+        }
+
+<span class="fc" id="L129">        return keyBuilder.toString();</span>
+    }
+
+    /**
+     * Check if current request is authenticated
+     */
+    private boolean isAuthenticated() {
+<span class="fc" id="L136">        Authentication auth = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L137" title="3 of 6 branches missed.">        return auth != null &amp;&amp; auth.isAuthenticated() &amp;&amp; !&quot;anonymousUser&quot;.equals(auth.getPrincipal());</span>
+    }
+
+    /**
+     * Get current authenticated user ID
+     */
+    private String getCurrentUserId() {
+<span class="fc" id="L144">        Authentication auth = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L145" title="2 of 6 branches missed.">        if (auth != null &amp;&amp; auth.isAuthenticated() &amp;&amp; !&quot;anonymousUser&quot;.equals(auth.getPrincipal())) {</span>
+<span class="fc" id="L146">            return auth.getName();</span>
+        }
+<span class="fc" id="L148">        return null;</span>
+    }
+
+    /**
+     * Get API key from request header
+     */
+    private String getApiKey() {
+<span class="fc" id="L155">        HttpServletRequest request = getCurrentRequest();</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (request != null) {</span>
+<span class="fc" id="L157">            String apiKey = request.getHeader(&quot;X-API-Key&quot;);</span>
+<span class="pc bpc" id="L158" title="1 of 4 branches missed.">            if (apiKey != null &amp;&amp; !apiKey.isEmpty()) {</span>
+                // Return hash of API key for privacy
+<span class="fc" id="L160">                return String.valueOf(apiKey.hashCode());</span>
+            }
+        }
+<span class="fc" id="L163">        return null;</span>
+    }
+
+    /**
+     * Get client IP address
+     */
+    private String getClientIp() {
+<span class="fc" id="L170">        HttpServletRequest request = getCurrentRequest();</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        if (request == null) {</span>
+<span class="nc" id="L172">            return &quot;unknown&quot;;</span>
+        }
+
+<span class="fc" id="L175">        String xForwardedFor = request.getHeader(&quot;X-Forwarded-For&quot;);</span>
+<span class="pc bpc" id="L176" title="1 of 4 branches missed.">        if (xForwardedFor != null &amp;&amp; !xForwardedFor.isEmpty()) {</span>
+<span class="fc" id="L177">            return xForwardedFor.split(&quot;,&quot;)[0].trim();</span>
+        }
+
+<span class="fc" id="L180">        String xRealIp = request.getHeader(&quot;X-Real-IP&quot;);</span>
+<span class="pc bpc" id="L181" title="1 of 4 branches missed.">        if (xRealIp != null &amp;&amp; !xRealIp.isEmpty()) {</span>
+<span class="fc" id="L182">            return xRealIp;</span>
+        }
+
+<span class="fc" id="L185">        return request.getRemoteAddr();</span>
+    }
+
+    /**
+     * Get current HTTP request
+     */
+    private HttpServletRequest getCurrentRequest() {
+<span class="fc" id="L192">        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">        return attrs != null ? attrs.getRequest() : null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

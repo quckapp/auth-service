@@ -1,12 +1,12 @@
-package com.quckchat.auth.service;
+package com.quckapp.auth.service;
 
-import com.quckchat.auth.domain.entity.DeviceType;
-import com.quckchat.auth.domain.entity.LinkedDevice;
-import com.quckchat.auth.domain.entity.UserProfile;
-import com.quckchat.auth.domain.repository.LinkedDeviceRepository;
-import com.quckchat.auth.domain.repository.UserProfileRepository;
-import com.quckchat.auth.dto.UserProfileDtos.*;
-import com.quckchat.auth.kafka.UserEventPublisher;
+import com.quckapp.auth.domain.entity.DeviceType;
+import com.quckapp.auth.domain.entity.LinkedDevice;
+import com.quckapp.auth.domain.entity.UserProfile;
+import com.quckapp.auth.domain.repository.LinkedDeviceRepository;
+import com.quckapp.auth.domain.repository.UserProfileRepository;
+import com.quckapp.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.kafka.UserEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

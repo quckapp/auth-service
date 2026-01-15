@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuditLog.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.audit</a> &gt; <span class="el_source">AuditLog.java</span></div><h1>AuditLog.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.audit;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Audit Log - Tracks all authentication events
+ */
+@Entity
+@Table(name = &quot;audit_logs&quot;, indexes = {
+    @Index(name = &quot;idx_audit_logs_user_id&quot;, columnList = &quot;userId&quot;),
+    @Index(name = &quot;idx_audit_logs_event_type&quot;, columnList = &quot;eventType&quot;),
+    @Index(name = &quot;idx_audit_logs_created_at&quot;, columnList = &quot;createdAt&quot;),
+    @Index(name = &quot;idx_audit_logs_ip&quot;, columnList = &quot;ipAddress&quot;)
+})
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class AuditLog {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private UUID userId;
+
+    private String email;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AuditEventType eventType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AuditStatus status;
+
+    private String ipAddress;
+
+    private String userAgent;
+
+    private String deviceId;
+
+    // Geolocation
+    private String country;
+    private String city;
+
+    // Additional context
+    @Column(columnDefinition = &quot;TEXT&quot;)
+    private String details;
+
+    // For failed attempts
+    private String failureReason;
+
+    // Request metadata
+    private String requestId;
+
+    private String sessionId;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+<span class="nc" id="L71">    public enum AuditEventType {</span>
+        // Authentication
+<span class="nc" id="L73">        LOGIN_SUCCESS,</span>
+<span class="nc" id="L74">        LOGIN_FAILED,</span>
+<span class="nc" id="L75">        LOGOUT,</span>
+<span class="nc" id="L76">        TOKEN_REFRESH,</span>
+<span class="nc" id="L77">        TOKEN_REVOKED,</span>
+
+        // 2FA
+<span class="nc" id="L80">        TWO_FACTOR_ENABLED,</span>
+<span class="nc" id="L81">        TWO_FACTOR_DISABLED,</span>
+<span class="nc" id="L82">        TWO_FACTOR_VERIFIED,</span>
+<span class="nc" id="L83">        TWO_FACTOR_FAILED,</span>
+
+        // Password
+<span class="nc" id="L86">        PASSWORD_CHANGED,</span>
+<span class="nc" id="L87">        PASSWORD_RESET_REQUESTED,</span>
+<span class="nc" id="L88">        PASSWORD_RESET_COMPLETED,</span>
+
+        // OAuth
+<span class="nc" id="L91">        OAUTH_LINKED,</span>
+<span class="nc" id="L92">        OAUTH_UNLINKED,</span>
+<span class="nc" id="L93">        OAUTH_LOGIN,</span>
+
+        // Account
+<span class="nc" id="L96">        ACCOUNT_CREATED,</span>
+<span class="nc" id="L97">        ACCOUNT_LOCKED,</span>
+<span class="nc" id="L98">        ACCOUNT_UNLOCKED,</span>
+<span class="nc" id="L99">        ACCOUNT_SUSPENDED,</span>
+
+        // API Keys
+<span class="nc" id="L102">        API_KEY_CREATED,</span>
+<span class="nc" id="L103">        API_KEY_REVOKED,</span>
+<span class="nc" id="L104">        API_KEY_USED,</span>
+
+        // Sessions
+<span class="nc" id="L107">        SESSION_CREATED,</span>
+<span class="nc" id="L108">        SESSION_TERMINATED,</span>
+<span class="nc" id="L109">        ALL_SESSIONS_TERMINATED,</span>
+
+        // Security
+<span class="nc" id="L112">        SUSPICIOUS_ACTIVITY,</span>
+<span class="nc" id="L113">        IP_BLOCKED,</span>
+<span class="nc" id="L114">        RATE_LIMITED</span>
+    }
+
+<span class="nc" id="L117">    public enum AuditStatus {</span>
+<span class="nc" id="L118">        SUCCESS,</span>
+<span class="nc" id="L119">        FAILURE,</span>
+<span class="nc" id="L120">        WARNING</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

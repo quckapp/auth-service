@@ -1,4 +1,4 @@
-package com.quckchat.auth.domain.entity;
+package com.quckapp.auth.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -35,7 +35,10 @@ public class AuthUser {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    // Nullable for OAuth-only users
     private String passwordHash;
 
     // External user ID from main user service (NestJS)
@@ -63,6 +66,34 @@ public class AuthUser {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<OAuthConnection> oauthConnections = new HashSet<>();
+
+    // RBAC - User Role Assignments
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<UserRoleAssignment> roleAssignments = new HashSet<>();
+
+    // Active Sessions
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<ActiveSession> activeSessions = new HashSet<>();
+
+    // Login History
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @Builder.Default
+    private Set<LoginHistory> loginHistory = new HashSet<>();
+
+    // Trusted Devices
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<TrustedDevice> trustedDevices = new HashSet<>();
+
+    // Notification Preferences
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private UserNotificationPreferences notificationPreferences;
+
+    // Security Preferences
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private UserSecurityPreferences securityPreferences;
 
     // Security
     @Builder.Default

@@ -1,4 +1,4 @@
-package com.quckchat.auth.domain.entity;
+package com.quckapp.auth.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -46,6 +46,12 @@ public class RefreshToken {
     private String ipAddress;
 
     private String userAgent;
+
+    // OAuth provider if token was created via OAuth
+    private String oauthProvider;
+
+    // Session ID for session-based lookups
+    private String sessionId;
 
     @Builder.Default
     private boolean revoked = false;

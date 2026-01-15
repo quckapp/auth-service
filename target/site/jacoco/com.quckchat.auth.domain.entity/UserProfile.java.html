@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserProfile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.domain.entity</a> &gt; <span class="el_source">UserProfile.java</span></div><h1>UserProfile.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * User Profile Entity - Full user profile data
+ * Has a One-to-One relationship with AuthUser (shared primary key)
+ */
+@Entity
+@Table(name = &quot;user_profiles&quot;, indexes = {
+    @Index(name = &quot;idx_user_profiles_phone&quot;, columnList = &quot;phoneNumber&quot;),
+    @Index(name = &quot;idx_user_profiles_username&quot;, columnList = &quot;username&quot;),
+    @Index(name = &quot;idx_user_profiles_email&quot;, columnList = &quot;email&quot;),
+    @Index(name = &quot;idx_user_profiles_status&quot;, columnList = &quot;status&quot;)
+})
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class UserProfile {
+
+    @Id
+    private UUID id;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @MapsId
+    @JoinColumn(name = &quot;id&quot;)
+    private AuthUser authUser;
+
+    // Core profile fields
+    @Column(unique = true)
+    private String phoneNumber;
+
+    @Builder.Default
+    private boolean phoneVerified = false;
+
+    private Instant phoneVerifiedAt;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
+
+    @Column(nullable = false, length = 100)
+    private String displayName;
+
+    @Column(length = 255)
+    private String email;
+
+    @Column(columnDefinition = &quot;TEXT&quot;)
+    private String avatar;
+
+    @Column(length = 500)
+    private String bio;
+
+    @Column(columnDefinition = &quot;TEXT&quot;)
+    private String publicKey;
+
+    // Status fields
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private UserStatus status = UserStatus.OFFLINE;
+
+    private Instant lastSeen;
+
+    @Builder.Default
+    private boolean isActive = true;
+
+    @Builder.Default
+    private boolean isVerified = false;
+
+    // Role and permissions
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private UserRole role = UserRole.USER;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = &quot;user_permissions&quot;, joinColumns = @JoinColumn(name = &quot;user_profile_id&quot;))
+    @Column(name = &quot;permission&quot;, length = 50)
+    @Builder.Default
+    private Set&lt;String&gt; permissions = new HashSet&lt;&gt;();
+
+    // Moderation fields
+    @Builder.Default
+    private boolean isBanned = false;
+
+    @Column(length = 500)
+    private String banReason;
+
+    private Instant bannedAt;
+
+    private UUID bannedBy;
+
+    // Linked devices relationship
+    @OneToMany(mappedBy = &quot;userProfile&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;LinkedDevice&gt; linkedDevices = new HashSet&lt;&gt;();
+
+    // User settings relationship
+    @OneToOne(mappedBy = &quot;userProfile&quot;, cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private UserSettings settings;
+
+    // Audit timestamps
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    // Helper methods
+    public boolean hasPermission(String permission) {
+<span class="nc bnc" id="L124" title="All 4 branches missed.">        return permissions != null &amp;&amp; permissions.contains(permission);</span>
+    }
+
+    public boolean hasAdminAccess() {
+<span class="nc bnc" id="L128" title="All 4 branches missed.">        return role != null &amp;&amp; role.hasAdminAccess();</span>
+    }
+
+    public boolean hasModeratorAccess() {
+<span class="nc bnc" id="L132" title="All 4 branches missed.">        return role != null &amp;&amp; role.hasModeratorAccess();</span>
+    }
+
+    public void ban(UUID bannedBy, String reason) {
+<span class="fc" id="L136">        this.isBanned = true;</span>
+<span class="fc" id="L137">        this.banReason = reason;</span>
+<span class="fc" id="L138">        this.bannedAt = Instant.now();</span>
+<span class="fc" id="L139">        this.bannedBy = bannedBy;</span>
+<span class="fc" id="L140">    }</span>
+
+    public void unban() {
+<span class="nc" id="L143">        this.isBanned = false;</span>
+<span class="nc" id="L144">        this.banReason = null;</span>
+<span class="nc" id="L145">        this.bannedAt = null;</span>
+<span class="nc" id="L146">        this.bannedBy = null;</span>
+<span class="nc" id="L147">    }</span>
+
+    public void goOnline() {
+<span class="nc" id="L150">        this.status = UserStatus.ONLINE;</span>
+<span class="nc" id="L151">        this.lastSeen = Instant.now();</span>
+<span class="nc" id="L152">    }</span>
+
+    public void goOffline() {
+<span class="nc" id="L155">        this.status = UserStatus.OFFLINE;</span>
+<span class="nc" id="L156">        this.lastSeen = Instant.now();</span>
+<span class="nc" id="L157">    }</span>
+
+    public void updateLastSeen() {
+<span class="nc" id="L160">        this.lastSeen = Instant.now();</span>
+<span class="nc" id="L161">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

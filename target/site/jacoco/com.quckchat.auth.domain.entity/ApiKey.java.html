@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApiKey.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.domain.entity</a> &gt; <span class="el_source">ApiKey.java</span></div><h1>ApiKey.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * API Key - For service-to-service authentication
+ */
+@Entity
+@Table(name = &quot;api_keys&quot;, indexes = {
+    @Index(name = &quot;idx_api_keys_key_hash&quot;, columnList = &quot;keyHash&quot;),
+    @Index(name = &quot;idx_api_keys_user_id&quot;, columnList = &quot;user_id&quot;)
+})
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ApiKey {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private String name;
+
+    // Only store hash, never plain text
+    @Column(nullable = false, unique = true)
+    private String keyHash;
+
+    // Prefix for identification (e.g., &quot;qc_live_&quot; or &quot;qc_test_&quot;)
+    @Column(nullable = false)
+    private String keyPrefix;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = &quot;user_id&quot;)
+    private AuthUser user;
+
+    // For service API keys (not user-owned)
+    private String serviceName;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = &quot;api_key_permissions&quot;, joinColumns = @JoinColumn(name = &quot;api_key_id&quot;))
+    @Column(name = &quot;permission&quot;)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Set&lt;ApiPermission&gt; permissions = new HashSet&lt;&gt;();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = &quot;api_key_ip_whitelist&quot;, joinColumns = @JoinColumn(name = &quot;api_key_id&quot;))
+    @Column(name = &quot;ip_address&quot;)
+    @Builder.Default
+    private Set&lt;String&gt; ipWhitelist = new HashSet&lt;&gt;();
+
+    @Builder.Default
+    private boolean active = true;
+
+    private Instant expiresAt;
+
+    private Instant lastUsedAt;
+
+    private String lastUsedIp;
+
+    @Builder.Default
+    private long usageCount = 0;
+
+    // Rate limiting
+    private Integer rateLimitPerMinute;
+
+    private Integer rateLimitPerHour;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    public boolean isValid() {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (!active) return false;</span>
+<span class="nc bnc" id="L91" title="All 4 branches missed.">        if (expiresAt != null &amp;&amp; Instant.now().isAfter(expiresAt)) return false;</span>
+<span class="nc" id="L92">        return true;</span>
+    }
+
+    public boolean hasPermission(ApiPermission permission) {
+<span class="nc bnc" id="L96" title="All 4 branches missed.">        return permissions.contains(permission) || permissions.contains(ApiPermission.ADMIN);</span>
+    }
+
+    public boolean isIpAllowed(String ip) {
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if (ipWhitelist.isEmpty()) return true;</span>
+<span class="nc" id="L101">        return ipWhitelist.contains(ip);</span>
+    }
+
+    public void recordUsage(String ip) {
+<span class="nc" id="L105">        this.lastUsedAt = Instant.now();</span>
+<span class="nc" id="L106">        this.lastUsedIp = ip;</span>
+<span class="nc" id="L107">        this.usageCount++;</span>
+<span class="nc" id="L108">    }</span>
+
+<span class="nc" id="L110">    public enum ApiPermission {</span>
+<span class="nc" id="L111">        ADMIN,           // Full access</span>
+<span class="nc" id="L112">        READ_USER,       // Read user data</span>
+<span class="nc" id="L113">        WRITE_USER,      // Modify user data</span>
+<span class="nc" id="L114">        VALIDATE_TOKEN,  // Validate JWT tokens</span>
+<span class="nc" id="L115">        REVOKE_TOKEN,    // Revoke tokens</span>
+<span class="nc" id="L116">        READ_AUDIT,      // Read audit logs</span>
+<span class="nc" id="L117">        MANAGE_SESSIONS  // Manage user sessions</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

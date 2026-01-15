@@ -1,6 +1,6 @@
-package com.quckchat.auth.kafka;
+package com.quckapp.auth.kafka;
 
-import com.quckchat.auth.domain.entity.*;
+import com.quckapp.auth.domain.entity.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +18,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class UserEventPublisher {
+public class UserEventPublisher implements UserEventOperations {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -26,6 +26,9 @@ public class UserEventPublisher {
     private boolean kafkaEnabled;
 
     // Topic names
+    private static final String TOPIC_USER_REGISTERED = "user.registered";
+    private static final String TOPIC_PASSWORD_RESET_REQUESTED = "user.password.reset.requested";
+    private static final String TOPIC_PASSWORD_CHANGED = "user.password.changed";
     private static final String TOPIC_PROFILE_CREATED = "user.profile.created";
     private static final String TOPIC_PROFILE_UPDATED = "user.profile.updated";
     private static final String TOPIC_PROFILE_DELETED = "user.profile.deleted";
@@ -36,6 +39,40 @@ public class UserEventPublisher {
     private static final String TOPIC_DEVICE_LINKED = "user.device.linked";
     private static final String TOPIC_DEVICE_UNLINKED = "user.device.unlinked";
     private static final String TOPIC_SETTINGS_UPDATED = "user.settings.updated";
+
+    // ==================== Auth Events ====================
+
+    public void publishUserRegistered(AuthUser user) {
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "USER_REGISTERED");
+        event.put("userId", user.getId().toString());
+        event.put("externalId", user.getExternalId());
+        event.put("email", user.getEmail());
+        event.put("registeredAt", Instant.now().toString());
+
+        publish(TOPIC_USER_REGISTERED, user.getId().toString(), event);
+    }
+
+    public void publishPasswordResetRequested(AuthUser user, String resetToken) {
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "PASSWORD_RESET_REQUESTED");
+        event.put("userId", user.getId().toString());
+        event.put("email", user.getEmail());
+        event.put("resetToken", resetToken);
+        event.put("requestedAt", Instant.now().toString());
+
+        publish(TOPIC_PASSWORD_RESET_REQUESTED, user.getId().toString(), event);
+    }
+
+    public void publishPasswordChanged(AuthUser user) {
+        Map<String, Object> event = new HashMap<>();
+        event.put("eventType", "PASSWORD_CHANGED");
+        event.put("userId", user.getId().toString());
+        event.put("email", user.getEmail());
+        event.put("changedAt", Instant.now().toString());
+
+        publish(TOPIC_PASSWORD_CHANGED, user.getId().toString(), event);
+    }
 
     // ==================== Profile Events ====================
 

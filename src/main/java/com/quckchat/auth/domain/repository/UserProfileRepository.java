@@ -1,8 +1,8 @@
-package com.quckchat.auth.domain.repository;
+package com.quckapp.auth.domain.repository;
 
-import com.quckchat.auth.domain.entity.UserProfile;
-import com.quckchat.auth.domain.entity.UserRole;
-import com.quckchat.auth.domain.entity.UserStatus;
+import com.quckapp.auth.domain.entity.UserProfile;
+import com.quckapp.auth.domain.entity.UserRole;
+import com.quckapp.auth.domain.entity.UserStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

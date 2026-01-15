@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionDtos.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.dto</a> &gt; <span class="el_source">SessionDtos.java</span></div><h1>SessionDtos.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.dto;
+
+import com.quckapp.auth.domain.entity.ActiveSession;
+import com.quckapp.auth.domain.entity.SessionActivity;
+import com.quckapp.auth.domain.entity.SessionActivityType;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * DTOs for Session management operations
+ */
+<span class="nc" id="L17">public class SessionDtos {</span>
+
+    // ==================== Active Session DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ActiveSessionDto {
+        private UUID id;
+        private UUID userId;
+        private String deviceId;
+        private String deviceName;
+        private String deviceType;
+        private String osName;
+        private String osVersion;
+        private String browserName;
+        private String browserVersion;
+        private String ipAddress;
+        private String country;
+        private String city;
+        private BigDecimal latitude;
+        private BigDecimal longitude;
+        private boolean active;
+        private boolean trusted;
+        private Instant lastActivityAt;
+        private Instant expiresAt;
+        private Instant createdAt;
+        private boolean current;
+
+        public static ActiveSessionDto from(ActiveSession session) {
+<span class="fc" id="L48">            return ActiveSessionDto.builder()</span>
+<span class="fc" id="L49">                    .id(session.getId())</span>
+<span class="fc" id="L50">                    .userId(session.getUser().getId())</span>
+<span class="fc" id="L51">                    .deviceId(session.getDeviceId())</span>
+<span class="fc" id="L52">                    .deviceName(session.getDeviceName())</span>
+<span class="fc" id="L53">                    .deviceType(session.getDeviceType())</span>
+<span class="fc" id="L54">                    .osName(session.getOsName())</span>
+<span class="fc" id="L55">                    .osVersion(session.getOsVersion())</span>
+<span class="fc" id="L56">                    .browserName(session.getBrowserName())</span>
+<span class="fc" id="L57">                    .browserVersion(session.getBrowserVersion())</span>
+<span class="fc" id="L58">                    .ipAddress(session.getIpAddress())</span>
+<span class="fc" id="L59">                    .country(session.getCountry())</span>
+<span class="fc" id="L60">                    .city(session.getCity())</span>
+<span class="fc" id="L61">                    .latitude(session.getLatitude())</span>
+<span class="fc" id="L62">                    .longitude(session.getLongitude())</span>
+<span class="fc" id="L63">                    .active(session.isActive())</span>
+<span class="fc" id="L64">                    .trusted(session.isTrusted())</span>
+<span class="fc" id="L65">                    .lastActivityAt(session.getLastActivityAt())</span>
+<span class="fc" id="L66">                    .expiresAt(session.getExpiresAt())</span>
+<span class="fc" id="L67">                    .createdAt(session.getCreatedAt())</span>
+<span class="fc" id="L68">                    .current(false)</span>
+<span class="fc" id="L69">                    .build();</span>
+        }
+
+        public ActiveSessionDto markAsCurrent() {
+<span class="fc" id="L73">            this.current = true;</span>
+<span class="fc" id="L74">            return this;</span>
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SessionSummaryDto {
+        private UUID userId;
+        private int activeSessionCount;
+        private Instant lastActivity;
+        private List&lt;String&gt; deviceTypes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateSessionRequest {
+        private String sessionToken;
+        private String deviceId;
+        private String deviceName;
+        private String deviceType;
+        private String osName;
+        private String osVersion;
+        private String browserName;
+        private String browserVersion;
+        private String ipAddress;
+        private String userAgent;
+        private String country;
+        private String city;
+        private BigDecimal latitude;
+        private BigDecimal longitude;
+        private int expiryMinutes;
+    }
+
+    // ==================== Session Activity DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SessionActivityDto {
+        private UUID id;
+        private UUID sessionId;
+        private SessionActivityType activityType;
+        private String ipAddress;
+        private String userAgent;
+        private String details;
+        private Instant createdAt;
+
+        public static SessionActivityDto from(SessionActivity activity) {
+<span class="fc" id="L127">            return SessionActivityDto.builder()</span>
+<span class="fc" id="L128">                    .id(activity.getId())</span>
+<span class="fc" id="L129">                    .sessionId(activity.getSession().getId())</span>
+<span class="fc" id="L130">                    .activityType(activity.getActivityType())</span>
+<span class="fc" id="L131">                    .ipAddress(activity.getIpAddress())</span>
+<span class="fc" id="L132">                    .userAgent(activity.getUserAgent())</span>
+<span class="fc" id="L133">                    .details(activity.getDetails())</span>
+<span class="fc" id="L134">                    .createdAt(activity.getCreatedAt())</span>
+<span class="fc" id="L135">                    .build();</span>
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserSessionsResponse {
+        private UUID userId;
+        private int totalSessions;
+        private int activeSessions;
+        private List&lt;ActiveSessionDto&gt; sessions;
+        private UUID currentSessionId;
+    }
+
+    // ==================== Statistics DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SessionStatisticsDto {
+        private long totalActiveSessions;
+        private long activeUsersLast24h;
+        private java.util.Map&lt;String, Long&gt; sessionsByDeviceType;
+        private java.util.Map&lt;String, Long&gt; sessionsByCountry;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

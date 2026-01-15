@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomOidcUserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.security.oauth2</a> &gt; <span class="el_source">CustomOidcUserService.java</span></div><h1>CustomOidcUserService.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.security.oauth2;
+
+import com.quckapp.auth.domain.entity.AuthUser;
+import com.quckapp.auth.domain.entity.OAuthConnection;
+import com.quckapp.auth.domain.entity.OAuthConnection.OAuthProvider;
+import com.quckapp.auth.domain.repository.AuthUserRepository;
+import com.quckapp.auth.domain.repository.OAuthConnectionRepository;
+import com.quckapp.auth.kafka.UserEventPublisher;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Custom OIDC User Service for OpenID Connect providers (Google, Apple)
+ */
+@Service
+@RequiredArgsConstructor
+<span class="nc" id="L28">@Slf4j</span>
+public class CustomOidcUserService extends OidcUserService {
+
+    private final AuthUserRepository authUserRepository;
+    private final OAuthConnectionRepository oauthConnectionRepository;
+    private final UserEventPublisher userEventPublisher;
+
+    @Override
+    @Transactional
+    public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
+<span class="nc" id="L38">        OidcUser oidcUser = super.loadUser(userRequest);</span>
+
+<span class="nc" id="L40">        String registrationId = userRequest.getClientRegistration().getRegistrationId();</span>
+<span class="nc" id="L41">        log.info(&quot;Processing OIDC login for provider: {}&quot;, registrationId);</span>
+
+        try {
+<span class="nc" id="L44">            return processOidcUser(userRequest, oidcUser);</span>
+<span class="nc" id="L45">        } catch (Exception ex) {</span>
+<span class="nc" id="L46">            log.error(&quot;OIDC processing error: {}&quot;, ex.getMessage(), ex);</span>
+<span class="nc" id="L47">            throw new OAuth2AuthenticationException(</span>
+<span class="nc" id="L48">                    new OAuth2Error(&quot;processing_error&quot;, ex.getMessage(), null)</span>
+            );
+        }
+    }
+
+    private OidcUser processOidcUser(OidcUserRequest userRequest, OidcUser oidcUser) {
+<span class="nc" id="L54">        String registrationId = userRequest.getClientRegistration().getRegistrationId();</span>
+
+<span class="nc" id="L56">        String email = oidcUser.getEmail();</span>
+<span class="nc" id="L57">        String providerUserId = oidcUser.getSubject();</span>
+<span class="nc" id="L58">        String name = oidcUser.getFullName();</span>
+<span class="nc" id="L59">        String picture = oidcUser.getPicture();</span>
+
+<span class="nc bnc" id="L61" title="All 4 branches missed.">        if (email == null || email.isEmpty()) {</span>
+<span class="nc" id="L62">            throw new OAuth2AuthenticationException(</span>
+                    new OAuth2Error(&quot;email_not_found&quot;, &quot;Email not found from OIDC provider&quot;, null)
+            );
+        }
+
+<span class="nc" id="L67">        OAuthProvider provider = OAuthProvider.valueOf(registrationId.toUpperCase());</span>
+
+        // Check if OAuth connection exists
+<span class="nc" id="L70">        Optional&lt;OAuthConnection&gt; existingConnection = oauthConnectionRepository</span>
+<span class="nc" id="L71">                .findByProviderAndProviderUserId(provider, providerUserId);</span>
+
+        AuthUser user;
+<span class="nc" id="L74">        boolean isNewUser = false;</span>
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if (existingConnection.isPresent()) {</span>
+            // Existing OAuth connection - update tokens and return user
+<span class="nc" id="L78">            OAuthConnection connection = existingConnection.get();</span>
+<span class="nc" id="L79">            user = connection.getUser();</span>
+
+            // Update OAuth tokens
+<span class="nc" id="L82">            updateOAuthConnection(connection, userRequest);</span>
+
+<span class="nc" id="L84">            log.info(&quot;Existing OIDC user logged in: {}&quot;, user.getEmail());</span>
+
+<span class="nc" id="L86">        } else {</span>
+            // No existing connection - check if user exists by email
+<span class="nc" id="L88">            Optional&lt;AuthUser&gt; existingUser = authUserRepository.findByEmail(email);</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if (existingUser.isPresent()) {</span>
+                // User exists but no OAuth connection - link the account
+<span class="nc" id="L92">                user = existingUser.get();</span>
+<span class="nc" id="L93">                createOAuthConnection(user, provider, providerUserId, userRequest, oidcUser);</span>
+
+<span class="nc" id="L95">                log.info(&quot;Linked OIDC provider {} to existing user: {}&quot;, registrationId, user.getEmail());</span>
+
+            } else {
+                // New user - create account and OAuth connection
+<span class="nc" id="L99">                user = createNewUser(email, name);</span>
+<span class="nc" id="L100">                createOAuthConnection(user, provider, providerUserId, userRequest, oidcUser);</span>
+<span class="nc" id="L101">                isNewUser = true;</span>
+
+                // Publish event
+<span class="nc" id="L104">                userEventPublisher.publishUserRegistered(user);</span>
+
+<span class="nc" id="L106">                log.info(&quot;Created new user via OIDC: {}&quot;, user.getEmail());</span>
+            }
+        }
+
+        // Update last login
+<span class="nc" id="L111">        user.setLastLoginAt(Instant.now());</span>
+<span class="nc" id="L112">        authUserRepository.save(user);</span>
+
+<span class="nc" id="L114">        return new CustomOidcUser(user, oidcUser, isNewUser);</span>
+    }
+
+    private AuthUser createNewUser(String email, String name) {
+<span class="nc" id="L118">        AuthUser user = AuthUser.builder()</span>
+<span class="nc" id="L119">                .email(email)</span>
+<span class="nc" id="L120">                .externalId(UUID.randomUUID().toString())</span>
+<span class="nc" id="L121">                .status(AuthUser.AuthStatus.ACTIVE)</span>
+<span class="nc" id="L122">                .emailVerified(true) // OIDC emails are pre-verified</span>
+<span class="nc" id="L123">                .build();</span>
+
+<span class="nc" id="L125">        return authUserRepository.save(user);</span>
+    }
+
+    private void createOAuthConnection(AuthUser user, OAuthProvider provider, String providerUserId,
+                                       OidcUserRequest userRequest, OidcUser oidcUser) {
+<span class="nc" id="L130">        OAuthConnection connection = OAuthConnection.builder()</span>
+<span class="nc" id="L131">                .user(user)</span>
+<span class="nc" id="L132">                .provider(provider)</span>
+<span class="nc" id="L133">                .providerUserId(providerUserId)</span>
+<span class="nc" id="L134">                .providerEmail(oidcUser.getEmail())</span>
+<span class="nc" id="L135">                .providerName(oidcUser.getFullName())</span>
+<span class="nc" id="L136">                .providerAvatarUrl(oidcUser.getPicture())</span>
+<span class="nc" id="L137">                .scopes(String.join(&quot;,&quot;, userRequest.getClientRegistration().getScopes()))</span>
+<span class="nc" id="L138">                .accessToken(userRequest.getAccessToken().getTokenValue())</span>
+<span class="nc" id="L139">                .tokenExpiresAt(userRequest.getAccessToken().getExpiresAt())</span>
+<span class="nc" id="L140">                .lastUsedAt(Instant.now())</span>
+<span class="nc" id="L141">                .build();</span>
+
+<span class="nc" id="L143">        oauthConnectionRepository.save(connection);</span>
+<span class="nc" id="L144">    }</span>
+
+    private void updateOAuthConnection(OAuthConnection connection, OidcUserRequest userRequest) {
+<span class="nc" id="L147">        connection.setAccessToken(userRequest.getAccessToken().getTokenValue());</span>
+<span class="nc" id="L148">        connection.setTokenExpiresAt(userRequest.getAccessToken().getExpiresAt());</span>
+<span class="nc" id="L149">        connection.setLastUsedAt(Instant.now());</span>
+
+<span class="nc" id="L151">        oauthConnectionRepository.save(connection);</span>
+<span class="nc" id="L152">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

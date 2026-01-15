@@ -1,9 +1,9 @@
-package com.quckchat.auth.service;
+package com.quckapp.auth.service;
 
-import com.quckchat.auth.domain.entity.*;
-import com.quckchat.auth.domain.repository.*;
-import com.quckchat.auth.dto.UserProfileDtos.*;
-import com.quckchat.auth.kafka.UserEventPublisher;
+import com.quckapp.auth.domain.entity.*;
+import com.quckapp.auth.domain.repository.*;
+import com.quckapp.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.kafka.UserEventOperations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -27,7 +27,7 @@ public class UserProfileService {
     private final UserProfileRepository profileRepository;
     private final UserSettingsRepository settingsRepository;
     private final LinkedDeviceRepository deviceRepository;
-    private final UserEventPublisher eventPublisher;
+    private final UserEventOperations eventPublisher;
 
     // ==================== Profile CRUD ====================
 

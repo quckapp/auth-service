@@ -1,4 +1,4 @@
-package com.quckchat.auth.domain.entity;
+package com.quckapp.auth.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -41,6 +41,11 @@ public class UserProfile {
     // Core profile fields
     @Column(unique = true)
     private String phoneNumber;
+
+    @Builder.Default
+    private boolean phoneVerified = false;
+
+    private Instant phoneVerifiedAt;
 
     @Column(nullable = false, unique = true, length = 50)
     private String username;

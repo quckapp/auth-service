@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserPreferencesDtos.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.dto</a> &gt; <span class="el_source">UserPreferencesDtos.java</span></div><h1>UserPreferencesDtos.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.dto;
+
+import com.quckapp.auth.domain.entity.*;
+import lombok.*;
+
+import java.time.Instant;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * DTOs for User Preferences operations
+ */
+<span class="nc" id="L16">public class UserPreferencesDtos {</span>
+
+    // ==================== Notification Preferences DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NotificationPreferencesDto {
+        private UUID id;
+        private UUID userId;
+        // Email
+        private boolean emailMarketing;
+        private boolean emailSecurityAlerts;
+        private boolean emailLoginAlerts;
+        private boolean emailWeeklyDigest;
+        private boolean emailProductUpdates;
+        // Push
+        private boolean pushDirectMessages;
+        private boolean pushMentions;
+        private boolean pushReplies;
+        private boolean pushLikes;
+        private boolean pushFollows;
+        private boolean pushSystemAlerts;
+        // Quiet Hours
+        private boolean quietHoursEnabled;
+        private LocalTime quietHoursStart;
+        private LocalTime quietHoursEnd;
+        private String quietHoursTimezone;
+        // SMS
+        private boolean smsEnabled;
+        private boolean smsSecurityOnly;
+        // Timestamps
+        private Instant createdAt;
+        private Instant updatedAt;
+
+        public static NotificationPreferencesDto from(UserNotificationPreferences prefs) {
+<span class="nc" id="L53">            return NotificationPreferencesDto.builder()</span>
+<span class="nc" id="L54">                    .id(prefs.getId())</span>
+<span class="nc" id="L55">                    .userId(prefs.getUser().getId())</span>
+<span class="nc" id="L56">                    .emailMarketing(prefs.isEmailMarketing())</span>
+<span class="nc" id="L57">                    .emailSecurityAlerts(prefs.isEmailSecurityAlerts())</span>
+<span class="nc" id="L58">                    .emailLoginAlerts(prefs.isEmailLoginAlerts())</span>
+<span class="nc" id="L59">                    .emailWeeklyDigest(prefs.isEmailWeeklyDigest())</span>
+<span class="nc" id="L60">                    .emailProductUpdates(prefs.isEmailProductUpdates())</span>
+<span class="nc" id="L61">                    .pushDirectMessages(prefs.isPushDirectMessages())</span>
+<span class="nc" id="L62">                    .pushMentions(prefs.isPushMentions())</span>
+<span class="nc" id="L63">                    .pushReplies(prefs.isPushReplies())</span>
+<span class="nc" id="L64">                    .pushLikes(prefs.isPushLikes())</span>
+<span class="nc" id="L65">                    .pushFollows(prefs.isPushFollows())</span>
+<span class="nc" id="L66">                    .pushSystemAlerts(prefs.isPushSystemAlerts())</span>
+<span class="nc" id="L67">                    .quietHoursEnabled(prefs.isQuietHoursEnabled())</span>
+<span class="nc" id="L68">                    .quietHoursStart(prefs.getQuietHoursStart())</span>
+<span class="nc" id="L69">                    .quietHoursEnd(prefs.getQuietHoursEnd())</span>
+<span class="nc" id="L70">                    .quietHoursTimezone(prefs.getQuietHoursTimezone())</span>
+<span class="nc" id="L71">                    .smsEnabled(prefs.isSmsEnabled())</span>
+<span class="nc" id="L72">                    .smsSecurityOnly(prefs.isSmsSecurityOnly())</span>
+<span class="nc" id="L73">                    .createdAt(prefs.getCreatedAt())</span>
+<span class="nc" id="L74">                    .updatedAt(prefs.getUpdatedAt())</span>
+<span class="nc" id="L75">                    .build();</span>
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateNotificationPreferencesRequest {
+        // Email
+        private Boolean emailMarketing;
+        private Boolean emailSecurityAlerts;
+        private Boolean emailLoginAlerts;
+        private Boolean emailWeeklyDigest;
+        private Boolean emailProductUpdates;
+        // Push
+        private Boolean pushDirectMessages;
+        private Boolean pushMentions;
+        private Boolean pushReplies;
+        private Boolean pushLikes;
+        private Boolean pushFollows;
+        private Boolean pushSystemAlerts;
+        // Quiet Hours
+        private Boolean quietHoursEnabled;
+        private LocalTime quietHoursStart;
+        private LocalTime quietHoursEnd;
+        private String quietHoursTimezone;
+        // SMS
+        private Boolean smsEnabled;
+        private Boolean smsSecurityOnly;
+    }
+
+    // ==================== Security Preferences DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SecurityPreferencesDto {
+        private UUID id;
+        private UUID userId;
+        // Login Security
+        private boolean require2faForSensitiveActions;
+        private boolean loginNotificationEnabled;
+        private boolean newDeviceNotification;
+        private boolean suspiciousActivityNotification;
+        // Session
+        private int sessionTimeoutMinutes;
+        private int maxConcurrentSessions;
+        private boolean rememberTrustedDevices;
+        private int trustedDeviceExpiryDays;
+        // Password
+        private int passwordExpiryDays;
+        private boolean requirePasswordChangeOnNextLogin;
+        // IP Restrictions
+        private boolean ipWhitelistEnabled;
+        private Set&lt;String&gt; ipWhitelist;
+        // Timestamps
+        private Instant createdAt;
+        private Instant updatedAt;
+
+        public static SecurityPreferencesDto from(UserSecurityPreferences prefs) {
+<span class="nc" id="L137">            return SecurityPreferencesDto.builder()</span>
+<span class="nc" id="L138">                    .id(prefs.getId())</span>
+<span class="nc" id="L139">                    .userId(prefs.getUser().getId())</span>
+<span class="nc" id="L140">                    .require2faForSensitiveActions(prefs.isRequire2faForSensitiveActions())</span>
+<span class="nc" id="L141">                    .loginNotificationEnabled(prefs.isLoginNotificationEnabled())</span>
+<span class="nc" id="L142">                    .newDeviceNotification(prefs.isNewDeviceNotification())</span>
+<span class="nc" id="L143">                    .suspiciousActivityNotification(prefs.isSuspiciousActivityNotification())</span>
+<span class="nc" id="L144">                    .sessionTimeoutMinutes(prefs.getSessionTimeoutMinutes())</span>
+<span class="nc" id="L145">                    .maxConcurrentSessions(prefs.getMaxConcurrentSessions())</span>
+<span class="nc" id="L146">                    .rememberTrustedDevices(prefs.isRememberTrustedDevices())</span>
+<span class="nc" id="L147">                    .trustedDeviceExpiryDays(prefs.getTrustedDeviceExpiryDays())</span>
+<span class="nc" id="L148">                    .passwordExpiryDays(prefs.getPasswordExpiryDays())</span>
+<span class="nc" id="L149">                    .requirePasswordChangeOnNextLogin(prefs.isRequirePasswordChangeOnNextLogin())</span>
+<span class="nc" id="L150">                    .ipWhitelistEnabled(prefs.isIpWhitelistEnabled())</span>
+<span class="nc" id="L151">                    .ipWhitelist(prefs.getIpWhitelist())</span>
+<span class="nc" id="L152">                    .createdAt(prefs.getCreatedAt())</span>
+<span class="nc" id="L153">                    .updatedAt(prefs.getUpdatedAt())</span>
+<span class="nc" id="L154">                    .build();</span>
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateSecurityPreferencesRequest {
+        // Login Security
+        private Boolean require2faForSensitiveActions;
+        private Boolean loginNotificationEnabled;
+        private Boolean newDeviceNotification;
+        private Boolean suspiciousActivityNotification;
+        // Session
+        private Integer sessionTimeoutMinutes;
+        private Integer maxConcurrentSessions;
+        private Boolean rememberTrustedDevices;
+        private Integer trustedDeviceExpiryDays;
+        // Password
+        private Integer passwordExpiryDays;
+        // IP Restrictions
+        private Boolean ipWhitelistEnabled;
+    }
+
+    // ==================== Trusted Device DTOs ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TrustedDeviceDto {
+        private UUID id;
+        private UUID userId;
+        private String deviceFingerprint;
+        private String deviceName;
+        private String deviceType;
+        private String osName;
+        private String browserName;
+        private boolean trusted;
+        private Instant trustedAt;
+        private Instant lastUsedAt;
+        private Instant expiresAt;
+
+        public static TrustedDeviceDto from(TrustedDevice device) {
+<span class="nc" id="L199">            return TrustedDeviceDto.builder()</span>
+<span class="nc" id="L200">                    .id(device.getId())</span>
+<span class="nc" id="L201">                    .userId(device.getUser().getId())</span>
+<span class="nc" id="L202">                    .deviceFingerprint(device.getDeviceFingerprint())</span>
+<span class="nc" id="L203">                    .deviceName(device.getDeviceName())</span>
+<span class="nc" id="L204">                    .deviceType(device.getDeviceType())</span>
+<span class="nc" id="L205">                    .osName(device.getOsName())</span>
+<span class="nc" id="L206">                    .browserName(device.getBrowserName())</span>
+<span class="nc" id="L207">                    .trusted(device.isTrusted())</span>
+<span class="nc" id="L208">                    .trustedAt(device.getTrustedAt())</span>
+<span class="nc" id="L209">                    .lastUsedAt(device.getLastUsedAt())</span>
+<span class="nc" id="L210">                    .expiresAt(device.getExpiresAt())</span>
+<span class="nc" id="L211">                    .build();</span>
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TrustDeviceRequest {
+        private String deviceFingerprint;
+        private String deviceName;
+        private String deviceType;
+        private String osName;
+        private String browserName;
+        private Integer expiryDays;
+    }
+
+    // ==================== Combined Preferences DTO ====================
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserPreferencesDto {
+        private UUID userId;
+        private NotificationPreferencesDto notificationPreferences;
+        private SecurityPreferencesDto securityPreferences;
+        private List&lt;TrustedDeviceDto&gt; trustedDevices;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

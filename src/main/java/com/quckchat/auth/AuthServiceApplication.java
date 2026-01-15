@@ -1,4 +1,4 @@
-package com.quckchat.auth;
+package com.quckapp.auth;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * QuckChat Auth Service - Spring Boot Application
+ * QuckApp Auth Service - Spring Boot Application
  *
  * Full Security Suite:
  * - JWT + OAuth2 Authentication

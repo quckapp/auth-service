@@ -1,4 +1,4 @@
-package com.quckchat.auth.domain.entity;
+package com.quckapp.auth.domain.entity;
 
 /**
  * User role enumeration for authorization.

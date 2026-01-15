@@ -1,9 +1,9 @@
-package com.quckchat.auth.controller;
+package com.quckapp.auth.controller;
 
-import com.quckchat.auth.dto.UserProfileDtos.*;
-import com.quckchat.auth.service.LinkedDeviceService;
-import com.quckchat.auth.service.UserProfileService;
-import com.quckchat.auth.service.UserSettingsService;
+import com.quckapp.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.service.LinkedDeviceService;
+import com.quckapp.auth.service.UserProfileService;
+import com.quckapp.auth.service.UserSettingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

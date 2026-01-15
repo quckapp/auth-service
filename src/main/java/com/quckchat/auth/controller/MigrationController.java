@@ -1,7 +1,7 @@
-package com.quckchat.auth.controller;
+package com.quckapp.auth.controller;
 
-import com.quckchat.auth.dto.UserProfileDtos.*;
-import com.quckchat.auth.service.MigrationService;
+import com.quckapp.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.service.MigrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;

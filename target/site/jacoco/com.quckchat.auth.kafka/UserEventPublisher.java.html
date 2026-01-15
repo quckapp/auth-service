@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserEventPublisher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.kafka</a> &gt; <span class="el_source">UserEventPublisher.java</span></div><h1>UserEventPublisher.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.kafka;
+
+import com.quckapp.auth.domain.entity.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Kafka event publisher for user profile events
+ */
+@Component
+@RequiredArgsConstructor
+<span class="nc" id="L20">@Slf4j</span>
+public class UserEventPublisher implements UserEventOperations {
+
+    private final KafkaTemplate&lt;String, Object&gt; kafkaTemplate;
+
+    @Value(&quot;${spring.kafka.enabled:true}&quot;)
+    private boolean kafkaEnabled;
+
+    // Topic names
+    private static final String TOPIC_USER_REGISTERED = &quot;user.registered&quot;;
+    private static final String TOPIC_PASSWORD_RESET_REQUESTED = &quot;user.password.reset.requested&quot;;
+    private static final String TOPIC_PASSWORD_CHANGED = &quot;user.password.changed&quot;;
+    private static final String TOPIC_PROFILE_CREATED = &quot;user.profile.created&quot;;
+    private static final String TOPIC_PROFILE_UPDATED = &quot;user.profile.updated&quot;;
+    private static final String TOPIC_PROFILE_DELETED = &quot;user.profile.deleted&quot;;
+    private static final String TOPIC_STATUS_CHANGED = &quot;user.status.changed&quot;;
+    private static final String TOPIC_USER_BANNED = &quot;user.banned&quot;;
+    private static final String TOPIC_USER_UNBANNED = &quot;user.unbanned&quot;;
+    private static final String TOPIC_ROLE_CHANGED = &quot;user.role.changed&quot;;
+    private static final String TOPIC_DEVICE_LINKED = &quot;user.device.linked&quot;;
+    private static final String TOPIC_DEVICE_UNLINKED = &quot;user.device.unlinked&quot;;
+    private static final String TOPIC_SETTINGS_UPDATED = &quot;user.settings.updated&quot;;
+
+    // ==================== Auth Events ====================
+
+    public void publishUserRegistered(AuthUser user) {
+<span class="nc" id="L46">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L47">        event.put(&quot;eventType&quot;, &quot;USER_REGISTERED&quot;);</span>
+<span class="nc" id="L48">        event.put(&quot;userId&quot;, user.getId().toString());</span>
+<span class="nc" id="L49">        event.put(&quot;externalId&quot;, user.getExternalId());</span>
+<span class="nc" id="L50">        event.put(&quot;email&quot;, user.getEmail());</span>
+<span class="nc" id="L51">        event.put(&quot;registeredAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L53">        publish(TOPIC_USER_REGISTERED, user.getId().toString(), event);</span>
+<span class="nc" id="L54">    }</span>
+
+    public void publishPasswordResetRequested(AuthUser user, String resetToken) {
+<span class="nc" id="L57">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L58">        event.put(&quot;eventType&quot;, &quot;PASSWORD_RESET_REQUESTED&quot;);</span>
+<span class="nc" id="L59">        event.put(&quot;userId&quot;, user.getId().toString());</span>
+<span class="nc" id="L60">        event.put(&quot;email&quot;, user.getEmail());</span>
+<span class="nc" id="L61">        event.put(&quot;resetToken&quot;, resetToken);</span>
+<span class="nc" id="L62">        event.put(&quot;requestedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L64">        publish(TOPIC_PASSWORD_RESET_REQUESTED, user.getId().toString(), event);</span>
+<span class="nc" id="L65">    }</span>
+
+    public void publishPasswordChanged(AuthUser user) {
+<span class="nc" id="L68">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L69">        event.put(&quot;eventType&quot;, &quot;PASSWORD_CHANGED&quot;);</span>
+<span class="nc" id="L70">        event.put(&quot;userId&quot;, user.getId().toString());</span>
+<span class="nc" id="L71">        event.put(&quot;email&quot;, user.getEmail());</span>
+<span class="nc" id="L72">        event.put(&quot;changedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L74">        publish(TOPIC_PASSWORD_CHANGED, user.getId().toString(), event);</span>
+<span class="nc" id="L75">    }</span>
+
+    // ==================== Profile Events ====================
+
+    public void publishProfileCreated(UserProfile profile) {
+<span class="nc" id="L80">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L81">        event.put(&quot;eventType&quot;, &quot;PROFILE_CREATED&quot;);</span>
+<span class="nc" id="L82">        event.put(&quot;userId&quot;, profile.getId().toString());</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        event.put(&quot;externalId&quot;, profile.getAuthUser() != null ? profile.getAuthUser().getExternalId() : null);</span>
+<span class="nc" id="L84">        event.put(&quot;username&quot;, profile.getUsername());</span>
+<span class="nc" id="L85">        event.put(&quot;displayName&quot;, profile.getDisplayName());</span>
+<span class="nc" id="L86">        event.put(&quot;phoneNumber&quot;, profile.getPhoneNumber());</span>
+<span class="nc" id="L87">        event.put(&quot;email&quot;, profile.getEmail());</span>
+<span class="nc" id="L88">        event.put(&quot;avatar&quot;, profile.getAvatar());</span>
+<span class="nc" id="L89">        event.put(&quot;createdAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L91">        publish(TOPIC_PROFILE_CREATED, profile.getId().toString(), event);</span>
+<span class="nc" id="L92">    }</span>
+
+    public void publishProfileUpdated(UserProfile profile) {
+<span class="nc" id="L95">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L96">        event.put(&quot;eventType&quot;, &quot;PROFILE_UPDATED&quot;);</span>
+<span class="nc" id="L97">        event.put(&quot;userId&quot;, profile.getId().toString());</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        event.put(&quot;externalId&quot;, profile.getAuthUser() != null ? profile.getAuthUser().getExternalId() : null);</span>
+<span class="nc" id="L99">        event.put(&quot;username&quot;, profile.getUsername());</span>
+<span class="nc" id="L100">        event.put(&quot;displayName&quot;, profile.getDisplayName());</span>
+<span class="nc" id="L101">        event.put(&quot;email&quot;, profile.getEmail());</span>
+<span class="nc" id="L102">        event.put(&quot;avatar&quot;, profile.getAvatar());</span>
+<span class="nc" id="L103">        event.put(&quot;bio&quot;, profile.getBio());</span>
+<span class="nc" id="L104">        event.put(&quot;updatedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L106">        publish(TOPIC_PROFILE_UPDATED, profile.getId().toString(), event);</span>
+<span class="nc" id="L107">    }</span>
+
+    public void publishProfileDeleted(UserProfile profile) {
+<span class="nc" id="L110">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L111">        event.put(&quot;eventType&quot;, &quot;PROFILE_DELETED&quot;);</span>
+<span class="nc" id="L112">        event.put(&quot;userId&quot;, profile.getId().toString());</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        event.put(&quot;externalId&quot;, profile.getAuthUser() != null ? profile.getAuthUser().getExternalId() : null);</span>
+<span class="nc" id="L114">        event.put(&quot;deletedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L116">        publish(TOPIC_PROFILE_DELETED, profile.getId().toString(), event);</span>
+<span class="nc" id="L117">    }</span>
+
+    // ==================== Status Events ====================
+
+    public void publishStatusChanged(UUID userId, UserStatus status) {
+<span class="nc" id="L122">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L123">        event.put(&quot;eventType&quot;, &quot;STATUS_CHANGED&quot;);</span>
+<span class="nc" id="L124">        event.put(&quot;userId&quot;, userId.toString());</span>
+<span class="nc" id="L125">        event.put(&quot;status&quot;, status.name());</span>
+<span class="nc" id="L126">        event.put(&quot;changedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L128">        publish(TOPIC_STATUS_CHANGED, userId.toString(), event);</span>
+<span class="nc" id="L129">    }</span>
+
+    // ==================== Moderation Events ====================
+
+    public void publishUserBanned(UserProfile profile, UUID bannedBy, String reason) {
+<span class="nc" id="L134">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L135">        event.put(&quot;eventType&quot;, &quot;USER_BANNED&quot;);</span>
+<span class="nc" id="L136">        event.put(&quot;userId&quot;, profile.getId().toString());</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        event.put(&quot;externalId&quot;, profile.getAuthUser() != null ? profile.getAuthUser().getExternalId() : null);</span>
+<span class="nc" id="L138">        event.put(&quot;bannedBy&quot;, bannedBy.toString());</span>
+<span class="nc" id="L139">        event.put(&quot;reason&quot;, reason);</span>
+<span class="nc" id="L140">        event.put(&quot;bannedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L142">        publish(TOPIC_USER_BANNED, profile.getId().toString(), event);</span>
+<span class="nc" id="L143">    }</span>
+
+    public void publishUserUnbanned(UUID userId) {
+<span class="nc" id="L146">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L147">        event.put(&quot;eventType&quot;, &quot;USER_UNBANNED&quot;);</span>
+<span class="nc" id="L148">        event.put(&quot;userId&quot;, userId.toString());</span>
+<span class="nc" id="L149">        event.put(&quot;unbannedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L151">        publish(TOPIC_USER_UNBANNED, userId.toString(), event);</span>
+<span class="nc" id="L152">    }</span>
+
+    public void publishRoleChanged(UUID userId, UserRole role) {
+<span class="nc" id="L155">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L156">        event.put(&quot;eventType&quot;, &quot;ROLE_CHANGED&quot;);</span>
+<span class="nc" id="L157">        event.put(&quot;userId&quot;, userId.toString());</span>
+<span class="nc" id="L158">        event.put(&quot;newRole&quot;, role.name());</span>
+<span class="nc" id="L159">        event.put(&quot;changedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L161">        publish(TOPIC_ROLE_CHANGED, userId.toString(), event);</span>
+<span class="nc" id="L162">    }</span>
+
+    // ==================== Device Events ====================
+
+    public void publishDeviceLinked(UUID userId, LinkedDevice device) {
+<span class="nc" id="L167">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L168">        event.put(&quot;eventType&quot;, &quot;DEVICE_LINKED&quot;);</span>
+<span class="nc" id="L169">        event.put(&quot;userId&quot;, userId.toString());</span>
+<span class="nc" id="L170">        event.put(&quot;deviceId&quot;, device.getDeviceId());</span>
+<span class="nc" id="L171">        event.put(&quot;deviceName&quot;, device.getDeviceName());</span>
+<span class="nc" id="L172">        event.put(&quot;deviceType&quot;, device.getDeviceType().name());</span>
+<span class="nc" id="L173">        event.put(&quot;hasFcmToken&quot;, device.hasFcmToken());</span>
+<span class="nc" id="L174">        event.put(&quot;linkedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L176">        publish(TOPIC_DEVICE_LINKED, userId.toString(), event);</span>
+<span class="nc" id="L177">    }</span>
+
+    public void publishDeviceUnlinked(UUID userId, String deviceId) {
+<span class="nc" id="L180">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L181">        event.put(&quot;eventType&quot;, &quot;DEVICE_UNLINKED&quot;);</span>
+<span class="nc" id="L182">        event.put(&quot;userId&quot;, userId.toString());</span>
+<span class="nc" id="L183">        event.put(&quot;deviceId&quot;, deviceId);</span>
+<span class="nc" id="L184">        event.put(&quot;unlinkedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L186">        publish(TOPIC_DEVICE_UNLINKED, userId.toString(), event);</span>
+<span class="nc" id="L187">    }</span>
+
+    // ==================== Settings Events ====================
+
+    public void publishSettingsUpdated(UUID userId) {
+<span class="nc" id="L192">        Map&lt;String, Object&gt; event = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L193">        event.put(&quot;eventType&quot;, &quot;SETTINGS_UPDATED&quot;);</span>
+<span class="nc" id="L194">        event.put(&quot;userId&quot;, userId.toString());</span>
+<span class="nc" id="L195">        event.put(&quot;updatedAt&quot;, Instant.now().toString());</span>
+
+<span class="nc" id="L197">        publish(TOPIC_SETTINGS_UPDATED, userId.toString(), event);</span>
+<span class="nc" id="L198">    }</span>
+
+    // ==================== Helper Methods ====================
+
+    private void publish(String topic, String key, Object message) {
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if (!kafkaEnabled) {</span>
+<span class="nc" id="L204">            log.debug(&quot;Kafka disabled, skipping event: {} -&gt; {}&quot;, topic, message);</span>
+<span class="nc" id="L205">            return;</span>
+        }
+
+        try {
+<span class="nc" id="L209">            kafkaTemplate.send(topic, key, message)</span>
+<span class="nc" id="L210">                    .whenComplete((result, ex) -&gt; {</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                        if (ex != null) {</span>
+<span class="nc" id="L212">                            log.error(&quot;Failed to publish event to {}: {}&quot;, topic, ex.getMessage());</span>
+                        } else {
+<span class="nc" id="L214">                            log.debug(&quot;Published event to {}: partition={}, offset={}&quot;,</span>
+                                    topic,
+<span class="nc" id="L216">                                    result.getRecordMetadata().partition(),</span>
+<span class="nc" id="L217">                                    result.getRecordMetadata().offset());</span>
+                        }
+<span class="nc" id="L219">                    });</span>
+<span class="nc" id="L220">        } catch (Exception e) {</span>
+<span class="nc" id="L221">            log.error(&quot;Error publishing event to {}: {}&quot;, topic, e.getMessage(), e);</span>
+<span class="nc" id="L222">        }</span>
+<span class="nc" id="L223">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

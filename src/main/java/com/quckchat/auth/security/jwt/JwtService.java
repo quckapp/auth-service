@@ -1,6 +1,6 @@
-package com.quckchat.auth.security.jwt;
+package com.quckapp.auth.security.jwt;
 
-import com.quckchat.auth.domain.entity.AuthUser;
+import com.quckapp.auth.domain.entity.AuthUser;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -21,7 +21,7 @@ import java.util.function.Function;
  */
 @Service
 @Slf4j
-public class JwtService {
+public class JwtService implements JwtOperations {
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -44,6 +44,7 @@ public class JwtService {
         claims.put("email", user.getEmail());
         claims.put("externalId", user.getExternalId());
         claims.put("2fa", user.isTwoFactorEnabled());
+        claims.put("sessionId", UUID.randomUUID().toString());
 
         return buildToken(claims, user.getId().toString(), accessTokenExpiration);
     }
@@ -79,6 +80,17 @@ public class JwtService {
         claims.put("email", user.getEmail());
 
         return buildToken(claims, user.getId().toString(), 86400000); // 24 hours
+    }
+
+    /**
+     * Generate temporary token for 2FA verification
+     */
+    public String generateTempToken(AuthUser user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("type", "temp_2fa");
+        claims.put("email", user.getEmail());
+
+        return buildToken(claims, user.getId().toString(), 300000); // 5 minutes
     }
 
     /**
@@ -124,6 +136,20 @@ public class JwtService {
      */
     public String extractExternalId(String token) {
         return extractClaim(token, claims -> claims.get("externalId", String.class));
+    }
+
+    /**
+     * Extract session ID from token
+     */
+    public String extractSessionId(String token) {
+        return extractClaim(token, claims -> claims.get("sessionId", String.class));
+    }
+
+    /**
+     * Extract issued at date
+     */
+    public Date extractIssuedAt(String token) {
+        return extractClaim(token, Claims::getIssuedAt);
     }
 
     /**

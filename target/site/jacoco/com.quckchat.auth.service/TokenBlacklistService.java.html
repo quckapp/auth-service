@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TokenBlacklistService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.service</a> &gt; <span class="el_source">TokenBlacklistService.java</span></div><h1>TokenBlacklistService.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+
+/**
+ * Service for managing blacklisted tokens using Redis.
+ * Blacklisted tokens are stored with their remaining TTL to auto-expire.
+ */
+@Service
+@RequiredArgsConstructor
+<span class="fc" id="L17">@Slf4j</span>
+public class TokenBlacklistService implements TokenBlacklistOperations {
+
+    private final StringRedisOperations redisOperations;
+
+    private static final String BLACKLIST_PREFIX = &quot;token:blacklist:&quot;;
+    private static final String USER_BLACKLIST_PREFIX = &quot;user:token:blacklist:&quot;;
+
+    /**
+     * Blacklist a token until its expiration time.
+     *
+     * @param token     The JWT token to blacklist
+     * @param expiresAt The token's expiration time
+     * @param reason    The reason for blacklisting
+     */
+    public void blacklistToken(String token, Date expiresAt, String reason) {
+<span class="fc bfc" id="L33" title="All 4 branches covered.">        if (token == null || expiresAt == null) {</span>
+<span class="fc" id="L34">            return;</span>
+        }
+
+        // Calculate TTL - only blacklist if token hasn't expired yet
+<span class="fc" id="L38">        long ttlSeconds = (expiresAt.getTime() - System.currentTimeMillis()) / 1000;</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (ttlSeconds &lt;= 0) {</span>
+<span class="fc" id="L40">            log.debug(&quot;Token already expired, skipping blacklist&quot;);</span>
+<span class="fc" id="L41">            return;</span>
+        }
+
+<span class="fc" id="L44">        String key = BLACKLIST_PREFIX + hashToken(token);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        String value = reason != null ? reason : &quot;revoked&quot;;</span>
+
+<span class="fc" id="L47">        redisOperations.set(key, value, Duration.ofSeconds(ttlSeconds));</span>
+<span class="fc" id="L48">        log.debug(&quot;Token blacklisted for {} seconds: {}&quot;, ttlSeconds, reason);</span>
+<span class="fc" id="L49">    }</span>
+
+    /**
+     * Blacklist a token until its expiration time.
+     *
+     * @param token     The JWT token to blacklist
+     * @param expiresAt The token's expiration instant
+     * @param reason    The reason for blacklisting
+     */
+    public void blacklistToken(String token, Instant expiresAt, String reason) {
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (expiresAt != null) {</span>
+<span class="fc" id="L60">            blacklistToken(token, Date.from(expiresAt), reason);</span>
+        }
+<span class="fc" id="L62">    }</span>
+
+    /**
+     * Check if a token is blacklisted.
+     *
+     * @param token The JWT token to check
+     * @return true if the token is blacklisted
+     */
+    public boolean isBlacklisted(String token) {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (token == null) {</span>
+<span class="fc" id="L72">            return false;</span>
+        }
+
+<span class="fc" id="L75">        String key = BLACKLIST_PREFIX + hashToken(token);</span>
+<span class="fc" id="L76">        return redisOperations.hasKey(key);</span>
+    }
+
+    /**
+     * Blacklist all tokens for a user by storing a timestamp.
+     * Any token issued before this timestamp should be considered invalid.
+     *
+     * @param userId The user ID
+     */
+    public void blacklistAllUserTokens(String userId) {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (userId == null) {</span>
+<span class="fc" id="L87">            return;</span>
+        }
+
+<span class="fc" id="L90">        String key = USER_BLACKLIST_PREFIX + userId;</span>
+<span class="fc" id="L91">        String timestamp = String.valueOf(System.currentTimeMillis());</span>
+
+        // Store for 7 days (max refresh token lifetime)
+<span class="fc" id="L94">        redisOperations.set(key, timestamp, Duration.ofDays(7));</span>
+<span class="fc" id="L95">        log.info(&quot;All tokens blacklisted for user: {}&quot;, userId);</span>
+<span class="fc" id="L96">    }</span>
+
+    /**
+     * Get the timestamp when all user tokens were blacklisted.
+     *
+     * @param userId The user ID
+     * @return The blacklist timestamp, or null if no blacklist exists
+     */
+    public Long getUserBlacklistTimestamp(String userId) {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (userId == null) {</span>
+<span class="fc" id="L106">            return null;</span>
+        }
+
+<span class="fc" id="L109">        String key = USER_BLACKLIST_PREFIX + userId;</span>
+<span class="fc" id="L110">        String value = redisOperations.get(key);</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (value != null) {</span>
+            try {
+<span class="fc" id="L114">                return Long.parseLong(value);</span>
+<span class="fc" id="L115">            } catch (NumberFormatException e) {</span>
+<span class="fc" id="L116">                log.warn(&quot;Invalid blacklist timestamp for user {}: {}&quot;, userId, value);</span>
+            }
+        }
+<span class="fc" id="L119">        return null;</span>
+    }
+
+    /**
+     * Check if a token was issued before the user's blacklist timestamp.
+     *
+     * @param userId   The user ID
+     * @param issuedAt The token's issued-at timestamp (milliseconds)
+     * @return true if the token was issued before blacklist (and should be rejected)
+     */
+    public boolean isTokenIssuedBeforeBlacklist(String userId, long issuedAt) {
+<span class="fc" id="L130">        Long blacklistTimestamp = getUserBlacklistTimestamp(userId);</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (blacklistTimestamp == null) {</span>
+<span class="fc" id="L132">            return false;</span>
+        }
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        return issuedAt &lt; blacklistTimestamp;</span>
+    }
+
+    /**
+     * Remove a token from the blacklist.
+     *
+     * @param token The JWT token to remove
+     */
+    public void removeFromBlacklist(String token) {
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        if (token == null) {</span>
+<span class="fc" id="L144">            return;</span>
+        }
+
+<span class="fc" id="L147">        String key = BLACKLIST_PREFIX + hashToken(token);</span>
+<span class="fc" id="L148">        redisOperations.delete(key);</span>
+<span class="fc" id="L149">        log.debug(&quot;Token removed from blacklist&quot;);</span>
+<span class="fc" id="L150">    }</span>
+
+    /**
+     * Clear the user-level blacklist.
+     *
+     * @param userId The user ID
+     */
+    public void clearUserBlacklist(String userId) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        if (userId == null) {</span>
+<span class="fc" id="L159">            return;</span>
+        }
+
+<span class="fc" id="L162">        String key = USER_BLACKLIST_PREFIX + userId;</span>
+<span class="fc" id="L163">        redisOperations.delete(key);</span>
+<span class="fc" id="L164">        log.info(&quot;User blacklist cleared for: {}&quot;, userId);</span>
+<span class="fc" id="L165">    }</span>
+
+    /**
+     * Hash the token for storage (to avoid storing full tokens in Redis).
+     * Uses a simple approach - in production, consider using a proper hash.
+     */
+    private String hashToken(String token) {
+        // Use the last 32 characters of the token as a simple hash
+        // In production, you might want to use SHA-256
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (token.length() &gt; 32) {</span>
+<span class="nc" id="L175">            return token.substring(token.length() - 32);</span>
+        }
+<span class="fc" id="L177">        return token;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

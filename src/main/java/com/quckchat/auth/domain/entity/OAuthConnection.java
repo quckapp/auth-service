@@ -1,4 +1,4 @@
-package com.quckchat.auth.domain.entity;
+package com.quckapp.auth.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -37,6 +37,16 @@ public class OAuthConnection {
 
     @Column(nullable = false)
     private String providerUserId;
+
+    // Profile info from OAuth provider
+    private String providerEmail;
+
+    private String providerName;
+
+    private String providerAvatarUrl;
+
+    // OAuth scopes granted
+    private String scopes;
 
     private String accessToken;
 

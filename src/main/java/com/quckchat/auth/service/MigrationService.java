@@ -1,8 +1,8 @@
-package com.quckchat.auth.service;
+package com.quckapp.auth.service;
 
-import com.quckchat.auth.domain.entity.*;
-import com.quckchat.auth.domain.repository.*;
-import com.quckchat.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.domain.entity.*;
+import com.quckapp.auth.domain.repository.*;
+import com.quckapp.auth.dto.UserProfileDtos.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -144,7 +144,7 @@ public class MigrationService {
             for (MigratedOAuthProvider oauth : request.getOauthProviders()) {
                 OAuthConnection connection = OAuthConnection.builder()
                         .user(authUser)
-                        .provider(OAuthProvider.valueOf(oauth.getProvider().toUpperCase()))
+                        .provider(OAuthConnection.OAuthProvider.valueOf(oauth.getProvider().toUpperCase()))
                         .providerUserId(oauth.getProviderId())
                         .createdAt(oauth.getLinkedAt())
                         .build();
@@ -271,8 +271,4 @@ public class MigrationService {
 
         return status;
     }
-}
-
-// Interface reference (should exist in domain/repository)
-interface AuthUserRepository extends org.springframework.data.jpa.repository.JpaRepository<AuthUser, UUID> {
 }

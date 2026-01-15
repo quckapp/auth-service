@@ -1,4 +1,4 @@
-package com.quckchat.auth.audit;
+package com.quckapp.auth.audit;
 
 import jakarta.persistence.*;
 import lombok.*;

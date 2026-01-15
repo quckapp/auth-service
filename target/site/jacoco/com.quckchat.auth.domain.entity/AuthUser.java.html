@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthUser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.domain.entity</a> &gt; <span class="el_source">AuthUser.java</span></div><h1>AuthUser.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Auth User Entity - Core authentication record
+ * Stores only auth-related data, not full user profile
+ */
+@Entity
+@Table(name = &quot;auth_users&quot;, indexes = {
+    @Index(name = &quot;idx_auth_users_email&quot;, columnList = &quot;email&quot;),
+    @Index(name = &quot;idx_auth_users_external_id&quot;, columnList = &quot;externalId&quot;)
+})
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class AuthUser {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    // Nullable for OAuth-only users
+    private String passwordHash;
+
+    // External user ID from main user service (NestJS)
+    @Column(unique = true)
+    private String externalId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private AuthStatus status = AuthStatus.ACTIVE;
+
+    // 2FA
+    @Builder.Default
+    private boolean twoFactorEnabled = false;
+
+    private String twoFactorSecret;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = &quot;auth_user_backup_codes&quot;, joinColumns = @JoinColumn(name = &quot;user_id&quot;))
+    @Column(name = &quot;backup_code&quot;)
+    @Builder.Default
+    private Set&lt;String&gt; backupCodes = new HashSet&lt;&gt;();
+
+    // OAuth2 providers
+    @OneToMany(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;OAuthConnection&gt; oauthConnections = new HashSet&lt;&gt;();
+
+    // RBAC - User Role Assignments
+    @OneToMany(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;UserRoleAssignment&gt; roleAssignments = new HashSet&lt;&gt;();
+
+    // Active Sessions
+    @OneToMany(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;ActiveSession&gt; activeSessions = new HashSet&lt;&gt;();
+
+    // Login History
+    @OneToMany(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL)
+    @Builder.Default
+    private Set&lt;LoginHistory&gt; loginHistory = new HashSet&lt;&gt;();
+
+    // Trusted Devices
+    @OneToMany(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;TrustedDevice&gt; trustedDevices = new HashSet&lt;&gt;();
+
+    // Notification Preferences
+    @OneToOne(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    private UserNotificationPreferences notificationPreferences;
+
+    // Security Preferences
+    @OneToOne(mappedBy = &quot;user&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    private UserSecurityPreferences securityPreferences;
+
+    // Security
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    private Instant lockedUntil;
+
+    private Instant lastLoginAt;
+
+    private String lastLoginIp;
+
+    private Instant passwordChangedAt;
+
+    @Builder.Default
+    private boolean forcePasswordChange = false;
+
+    // Audit
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    // Helpers
+    public boolean isLocked() {
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">        return lockedUntil != null &amp;&amp; Instant.now().isBefore(lockedUntil);</span>
+    }
+
+    public boolean isActive() {
+<span class="nc bnc" id="L127" title="All 4 branches missed.">        return status == AuthStatus.ACTIVE &amp;&amp; !isLocked();</span>
+    }
+
+    public void incrementFailedAttempts() {
+<span class="fc" id="L131">        this.failedLoginAttempts++;</span>
+<span class="fc" id="L132">    }</span>
+
+    public void resetFailedAttempts() {
+<span class="fc" id="L135">        this.failedLoginAttempts = 0;</span>
+<span class="fc" id="L136">        this.lockedUntil = null;</span>
+<span class="fc" id="L137">    }</span>
+
+<span class="fc" id="L139">    public enum AuthStatus {</span>
+<span class="fc" id="L140">        ACTIVE,</span>
+<span class="fc" id="L141">        INACTIVE,</span>
+<span class="fc" id="L142">        SUSPENDED,</span>
+<span class="fc" id="L143">        PENDING_VERIFICATION</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

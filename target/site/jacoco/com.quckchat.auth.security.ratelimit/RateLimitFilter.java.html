@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateLimitFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.security.ratelimit</a> &gt; <span class="el_source">RateLimitFilter.java</span></div><h1>RateLimitFilter.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.security.ratelimit;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Servlet Filter for global IP-based rate limiting
+ * Applied to all requests before reaching controllers
+ */
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+@RequiredArgsConstructor
+<span class="fc" id="L29">@Slf4j</span>
+public class RateLimitFilter extends OncePerRequestFilter {
+
+    private final RateLimitOperations rateLimitService;
+    private final RateLimitConfig config;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * Paths to exclude from rate limiting
+     */
+<span class="fc" id="L39">    private static final Set&lt;String&gt; EXCLUDED_PATHS = Set.of(</span>
+            &quot;/actuator/health&quot;,
+            &quot;/actuator/info&quot;,
+            &quot;/health&quot;,
+            &quot;/v3/api-docs&quot;,
+            &quot;/swagger-ui&quot;
+    );
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+
+        // Skip if rate limiting is disabled
+<span class="fc bfc" id="L52" title="All 4 branches covered.">        if (!config.isEnabled() || !config.getIp().isEnabled()) {</span>
+<span class="fc" id="L53">            filterChain.doFilter(request, response);</span>
+<span class="fc" id="L54">            return;</span>
+        }
+
+        // Skip excluded paths
+<span class="fc" id="L58">        String path = request.getRequestURI();</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        if (isExcludedPath(path)) {</span>
+<span class="fc" id="L60">            filterChain.doFilter(request, response);</span>
+<span class="fc" id="L61">            return;</span>
+        }
+
+        // Get client IP
+<span class="fc" id="L65">        String clientIp = getClientIp(request);</span>
+
+        // Check rate limit
+<span class="fc" id="L68">        RateLimitResult result = rateLimitService.checkIpRateLimit(clientIp);</span>
+
+        // Add rate limit headers
+<span class="fc" id="L71">        addRateLimitHeaders(response, result, config.getIp().getRequestsPerMinute());</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (result.isDenied()) {</span>
+<span class="fc" id="L74">            log.warn(&quot;IP rate limit exceeded for: {} on path: {}&quot;, clientIp, path);</span>
+<span class="fc" id="L75">            sendRateLimitResponse(response, result);</span>
+<span class="fc" id="L76">            return;</span>
+        }
+
+<span class="fc" id="L79">        filterChain.doFilter(request, response);</span>
+<span class="fc" id="L80">    }</span>
+
+    /**
+     * Check if path should be excluded from rate limiting
+     */
+    private boolean isExcludedPath(String path) {
+<span class="fc" id="L86">        return EXCLUDED_PATHS.stream().anyMatch(path::startsWith);</span>
+    }
+
+    /**
+     * Get client IP address
+     */
+    private String getClientIp(HttpServletRequest request) {
+<span class="fc" id="L93">        String xForwardedFor = request.getHeader(&quot;X-Forwarded-For&quot;);</span>
+<span class="fc bfc" id="L94" title="All 4 branches covered.">        if (xForwardedFor != null &amp;&amp; !xForwardedFor.isEmpty()) {</span>
+<span class="fc" id="L95">            return xForwardedFor.split(&quot;,&quot;)[0].trim();</span>
+        }
+
+<span class="fc" id="L98">        String xRealIp = request.getHeader(&quot;X-Real-IP&quot;);</span>
+<span class="pc bpc" id="L99" title="1 of 4 branches missed.">        if (xRealIp != null &amp;&amp; !xRealIp.isEmpty()) {</span>
+<span class="fc" id="L100">            return xRealIp;</span>
+        }
+
+<span class="fc" id="L103">        return request.getRemoteAddr();</span>
+    }
+
+    /**
+     * Add rate limit headers to response
+     */
+    private void addRateLimitHeaders(HttpServletResponse response, RateLimitResult result, int limit) {
+<span class="fc" id="L110">        response.setHeader(&quot;X-RateLimit-Limit&quot;, String.valueOf(limit));</span>
+<span class="fc" id="L111">        response.setHeader(&quot;X-RateLimit-Remaining&quot;, String.valueOf(result.getRemaining()));</span>
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (result.isDenied()) {</span>
+<span class="fc" id="L114">            response.setHeader(&quot;X-RateLimit-Reset&quot;, String.valueOf(result.getRetryAfterSeconds()));</span>
+<span class="fc" id="L115">            response.setHeader(&quot;Retry-After&quot;, String.valueOf(result.getRetryAfterSeconds()));</span>
+        }
+<span class="fc" id="L117">    }</span>
+
+    /**
+     * Send rate limit exceeded response
+     */
+    private void sendRateLimitResponse(HttpServletResponse response, RateLimitResult result) throws IOException {
+<span class="fc" id="L123">        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());</span>
+<span class="fc" id="L124">        response.setContentType(MediaType.APPLICATION_JSON_VALUE);</span>
+
+<span class="fc" id="L126">        Map&lt;String, Object&gt; body = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L127">        body.put(&quot;error&quot;, &quot;rate_limit_exceeded&quot;);</span>
+<span class="fc" id="L128">        body.put(&quot;message&quot;, &quot;Too many requests. Please try again later.&quot;);</span>
+<span class="fc" id="L129">        body.put(&quot;retryAfter&quot;, result.getRetryAfterSeconds());</span>
+
+<span class="fc" id="L131">        response.getWriter().write(objectMapper.writeValueAsString(body));</span>
+<span class="fc" id="L132">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

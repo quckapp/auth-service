@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Role.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.domain.entity</a> &gt; <span class="el_source">Role.java</span></div><h1>Role.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Role Entity - Defines roles for RBAC
+ */
+@Entity
+@Table(name = &quot;roles&quot;, indexes = {
+    @Index(name = &quot;idx_roles_name&quot;, columnList = &quot;name&quot;),
+    @Index(name = &quot;idx_roles_is_active&quot;, columnList = &quot;isActive&quot;)
+})
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Role {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String name;
+
+    @Column(length = 255)
+    private String description;
+
+    @Builder.Default
+    private boolean isSystemRole = false;
+
+    @Builder.Default
+    private boolean isActive = true;
+
+    @Builder.Default
+    private int priority = 0;
+
+    @OneToMany(mappedBy = &quot;role&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;RolePermission&gt; rolePermissions = new HashSet&lt;&gt;();
+
+    @OneToMany(mappedBy = &quot;role&quot;, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set&lt;UserRoleAssignment&gt; userRoles = new HashSet&lt;&gt;();
+
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    // Helper methods
+    public void addPermission(Permission permission, UUID grantedBy) {
+<span class="nc" id="L66">        RolePermission rolePermission = RolePermission.builder()</span>
+<span class="nc" id="L67">            .role(this)</span>
+<span class="nc" id="L68">            .permission(permission)</span>
+<span class="nc" id="L69">            .grantedBy(grantedBy)</span>
+<span class="nc" id="L70">            .build();</span>
+<span class="nc" id="L71">        rolePermissions.add(rolePermission);</span>
+<span class="nc" id="L72">    }</span>
+
+    public void removePermission(Permission permission) {
+<span class="nc" id="L75">        rolePermissions.removeIf(rp -&gt; rp.getPermission().equals(permission));</span>
+<span class="nc" id="L76">    }</span>
+
+    public boolean hasPermission(String permissionName) {
+<span class="nc" id="L79">        return rolePermissions.stream()</span>
+<span class="nc" id="L80">            .anyMatch(rp -&gt; rp.getPermission().getName().equals(permissionName));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

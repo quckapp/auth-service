@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PermissionService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">QuckApp Auth Service</a> &gt; <a href="index.source.html" class="el_package">com.quckapp.auth.service</a> &gt; <span class="el_source">PermissionService.java</span></div><h1>PermissionService.java</h1><pre class="source lang-java linenums">package com.quckapp.auth.service;
+
+import com.quckapp.auth.domain.entity.Permission;
+import com.quckapp.auth.domain.repository.PermissionRepository;
+import com.quckapp.auth.dto.RbacDtos.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Service for Permission management operations
+ */
+@Service
+@Transactional
+@RequiredArgsConstructor
+<span class="nc" id="L22">@Slf4j</span>
+public class PermissionService {
+
+    private final PermissionRepository permissionRepository;
+
+    // ==================== Permission CRUD ====================
+
+    public PermissionDto createPermission(CreatePermissionRequest request) {
+<span class="nc" id="L30">        log.info(&quot;Creating permission: {}&quot;, request.getName());</span>
+
+<span class="nc bnc" id="L32" title="All 2 branches missed.">        if (permissionRepository.existsByName(request.getName())) {</span>
+<span class="nc" id="L33">            throw new RuntimeException(&quot;Permission already exists: &quot; + request.getName());</span>
+        }
+
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        if (permissionRepository.findByResourceAndAction(request.getResource(), request.getAction()).isPresent()) {</span>
+<span class="nc" id="L37">            throw new RuntimeException(&quot;Permission for resource:action already exists: &quot;</span>
+<span class="nc" id="L38">                    + request.getResource() + &quot;:&quot; + request.getAction());</span>
+        }
+
+<span class="nc" id="L41">        Permission permission = Permission.builder()</span>
+<span class="nc" id="L42">                .name(request.getName().toLowerCase())</span>
+<span class="nc" id="L43">                .description(request.getDescription())</span>
+<span class="nc" id="L44">                .resource(request.getResource().toLowerCase())</span>
+<span class="nc" id="L45">                .action(request.getAction().toLowerCase())</span>
+<span class="nc" id="L46">                .isActive(true)</span>
+<span class="nc" id="L47">                .build();</span>
+
+<span class="nc" id="L49">        permission = permissionRepository.save(permission);</span>
+<span class="nc" id="L50">        log.info(&quot;Permission created successfully: {}&quot;, permission.getId());</span>
+<span class="nc" id="L51">        return PermissionDto.from(permission);</span>
+    }
+
+    @Transactional(readOnly = true)
+    public PermissionDto getPermission(UUID permissionId) {
+<span class="nc" id="L56">        Permission permission = findPermissionOrThrow(permissionId);</span>
+<span class="nc" id="L57">        return PermissionDto.from(permission);</span>
+    }
+
+    @Transactional(readOnly = true)
+    public Optional&lt;PermissionDto&gt; getPermissionByName(String name) {
+<span class="nc" id="L62">        return permissionRepository.findByName(name.toLowerCase())</span>
+<span class="nc" id="L63">                .map(PermissionDto::from);</span>
+    }
+
+    @Transactional(readOnly = true)
+    public Optional&lt;PermissionDto&gt; getPermissionByResourceAndAction(String resource, String action) {
+<span class="nc" id="L68">        return permissionRepository.findByResourceAndAction(resource.toLowerCase(), action.toLowerCase())</span>
+<span class="nc" id="L69">                .map(PermissionDto::from);</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;PermissionDto&gt; getAllPermissions() {
+<span class="nc" id="L74">        return permissionRepository.findAll().stream()</span>
+<span class="nc" id="L75">                .map(PermissionDto::from)</span>
+<span class="nc" id="L76">                .collect(Collectors.toList());</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;PermissionDto&gt; getActivePermissions() {
+<span class="nc" id="L81">        return permissionRepository.findByIsActiveTrue().stream()</span>
+<span class="nc" id="L82">                .map(PermissionDto::from)</span>
+<span class="nc" id="L83">                .collect(Collectors.toList());</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;PermissionDto&gt; getPermissionsByResource(String resource) {
+<span class="nc" id="L88">        return permissionRepository.findByResource(resource.toLowerCase()).stream()</span>
+<span class="nc" id="L89">                .map(PermissionDto::from)</span>
+<span class="nc" id="L90">                .collect(Collectors.toList());</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;PermissionDto&gt; getPermissionsByRoleId(UUID roleId) {
+<span class="nc" id="L95">        return permissionRepository.findByRoleId(roleId).stream()</span>
+<span class="nc" id="L96">                .map(PermissionDto::from)</span>
+<span class="nc" id="L97">                .collect(Collectors.toList());</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;String&gt; getAllResources() {
+<span class="nc" id="L102">        return permissionRepository.findAllResources();</span>
+    }
+
+    public PermissionDto updatePermission(UUID permissionId, String description, Boolean active) {
+<span class="nc" id="L106">        log.info(&quot;Updating permission: {}&quot;, permissionId);</span>
+<span class="nc" id="L107">        Permission permission = findPermissionOrThrow(permissionId);</span>
+
+<span class="nc bnc" id="L109" title="All 2 branches missed.">        if (description != null) {</span>
+<span class="nc" id="L110">            permission.setDescription(description);</span>
+        }
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if (active != null) {</span>
+<span class="nc" id="L113">            permission.setActive(active);</span>
+        }
+
+<span class="nc" id="L116">        permission = permissionRepository.save(permission);</span>
+<span class="nc" id="L117">        log.info(&quot;Permission updated successfully: {}&quot;, permissionId);</span>
+<span class="nc" id="L118">        return PermissionDto.from(permission);</span>
+    }
+
+    public void deletePermission(UUID permissionId) {
+<span class="nc" id="L122">        log.info(&quot;Deleting permission: {}&quot;, permissionId);</span>
+<span class="nc" id="L123">        Permission permission = findPermissionOrThrow(permissionId);</span>
+
+        // Check if permission is used by any role
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (!permission.getRolePermissions().isEmpty()) {</span>
+<span class="nc" id="L127">            throw new RuntimeException(&quot;Cannot delete permission that is assigned to roles&quot;);</span>
+        }
+
+<span class="nc" id="L130">        permissionRepository.delete(permission);</span>
+<span class="nc" id="L131">        log.info(&quot;Permission deleted successfully: {}&quot;, permissionId);</span>
+<span class="nc" id="L132">    }</span>
+
+    public void deactivatePermission(UUID permissionId) {
+<span class="nc" id="L135">        log.info(&quot;Deactivating permission: {}&quot;, permissionId);</span>
+<span class="nc" id="L136">        Permission permission = findPermissionOrThrow(permissionId);</span>
+<span class="nc" id="L137">        permission.setActive(false);</span>
+<span class="nc" id="L138">        permissionRepository.save(permission);</span>
+<span class="nc" id="L139">        log.info(&quot;Permission deactivated: {}&quot;, permissionId);</span>
+<span class="nc" id="L140">    }</span>
+
+    // ==================== Bulk Operations ====================
+
+    public List&lt;PermissionDto&gt; createPermissions(List&lt;CreatePermissionRequest&gt; requests) {
+<span class="nc" id="L145">        log.info(&quot;Creating {} permissions&quot;, requests.size());</span>
+<span class="nc" id="L146">        return requests.stream()</span>
+<span class="nc" id="L147">                .map(this::createPermission)</span>
+<span class="nc" id="L148">                .collect(Collectors.toList());</span>
+    }
+
+    // ==================== Helper Methods ====================
+
+    private Permission findPermissionOrThrow(UUID permissionId) {
+<span class="nc" id="L154">        return permissionRepository.findById(permissionId)</span>
+<span class="nc" id="L155">                .orElseThrow(() -&gt; new RuntimeException(&quot;Permission not found: &quot; + permissionId));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

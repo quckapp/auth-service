@@ -9,7 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
 class KafkaSmsServiceTest {
 
     @Mock
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private KafkaOperations<String, Object> kafkaOperations;
 
     private KafkaSmsService kafkaSmsService;
 
@@ -37,7 +37,7 @@ class KafkaSmsServiceTest {
 
     @BeforeEach
     void setUp() {
-        kafkaSmsService = new KafkaSmsService(kafkaTemplate);
+        kafkaSmsService = new KafkaSmsService(kafkaOperations);
 
         // Set the @Value fields using reflection
         ReflectionTestUtils.setField(kafkaSmsService, "otpTopic", OTP_TOPIC);
@@ -57,14 +57,14 @@ class KafkaSmsServiceTest {
             int expiryMinutes = 5;
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
                     .thenReturn(future);
 
             kafkaSmsService.sendOtp(phoneNumber, code, expiryMinutes);
 
             ArgumentCaptor<PhoneOtpRequestedEvent> eventCaptor = ArgumentCaptor.forClass(PhoneOtpRequestedEvent.class);
-            verify(kafkaTemplate).send(eq(OTP_TOPIC), eq(phoneNumber), eventCaptor.capture());
+            verify(kafkaOperations).send(eq(OTP_TOPIC), eq(phoneNumber), eventCaptor.capture());
 
             PhoneOtpRequestedEvent event = eventCaptor.getValue();
             assertThat(event.getPhoneNumber()).isEqualTo(phoneNumber);
@@ -84,8 +84,8 @@ class KafkaSmsServiceTest {
             int expiryMinutes = 10;
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
                     .thenReturn(future);
 
             Instant beforeSend = Instant.now();
@@ -93,7 +93,7 @@ class KafkaSmsServiceTest {
             Instant afterSend = Instant.now();
 
             ArgumentCaptor<PhoneOtpRequestedEvent> eventCaptor = ArgumentCaptor.forClass(PhoneOtpRequestedEvent.class);
-            verify(kafkaTemplate).send(eq(OTP_TOPIC), eq(phoneNumber), eventCaptor.capture());
+            verify(kafkaOperations).send(eq(OTP_TOPIC), eq(phoneNumber), eventCaptor.capture());
 
             PhoneOtpRequestedEvent event = eventCaptor.getValue();
             // Expiry should be approximately expiryMinutes * 60 seconds from now
@@ -111,14 +111,14 @@ class KafkaSmsServiceTest {
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
             future.completeExceptionally(new RuntimeException("Kafka connection failed"));
-            when(kafkaTemplate.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
+            when(kafkaOperations.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
                     .thenReturn(future);
 
             // Should not throw exception - failure is logged
             assertThatNoException().isThrownBy(() ->
                     kafkaSmsService.sendOtp(phoneNumber, code, expiryMinutes));
 
-            verify(kafkaTemplate).send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class));
+            verify(kafkaOperations).send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class));
         }
 
         @Test
@@ -128,15 +128,15 @@ class KafkaSmsServiceTest {
             String code = "123456";
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
                     .thenReturn(future);
 
             kafkaSmsService.sendOtp(phoneNumber, code, 5);
             kafkaSmsService.sendOtp(phoneNumber, code, 5);
 
             ArgumentCaptor<PhoneOtpRequestedEvent> eventCaptor = ArgumentCaptor.forClass(PhoneOtpRequestedEvent.class);
-            verify(kafkaTemplate, times(2)).send(eq(OTP_TOPIC), eq(phoneNumber), eventCaptor.capture());
+            verify(kafkaOperations, times(2)).send(eq(OTP_TOPIC), eq(phoneNumber), eventCaptor.capture());
 
             assertThat(eventCaptor.getAllValues().get(0).getEventId())
                     .isNotEqualTo(eventCaptor.getAllValues().get(1).getEventId());
@@ -154,15 +154,15 @@ class KafkaSmsServiceTest {
             String message = "Your login was successful.";
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class)))
                     .thenReturn(future);
 
             kafkaSmsService.sendSms(phoneNumber, message);
 
             ArgumentCaptor<KafkaSmsService.GenericSmsEvent> eventCaptor =
                     ArgumentCaptor.forClass(KafkaSmsService.GenericSmsEvent.class);
-            verify(kafkaTemplate).send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), eventCaptor.capture());
+            verify(kafkaOperations).send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), eventCaptor.capture());
 
             KafkaSmsService.GenericSmsEvent event = eventCaptor.getValue();
             assertThat(event.phoneNumber()).isEqualTo(phoneNumber);
@@ -180,14 +180,14 @@ class KafkaSmsServiceTest {
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
             future.completeExceptionally(new RuntimeException("Kafka connection failed"));
-            when(kafkaTemplate.send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class)))
+            when(kafkaOperations.send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class)))
                     .thenReturn(future);
 
             // Should not throw exception - failure is logged
             assertThatNoException().isThrownBy(() ->
                     kafkaSmsService.sendSms(phoneNumber, message));
 
-            verify(kafkaTemplate).send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class));
+            verify(kafkaOperations).send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class));
         }
     }
 
@@ -204,8 +204,8 @@ class KafkaSmsServiceTest {
             String code = "123456";
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
                     .thenReturn(future);
 
             // If we get here without exception, the masking is working
@@ -220,8 +220,8 @@ class KafkaSmsServiceTest {
             String code = "123456";
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(OTP_TOPIC), eq(phoneNumber), any(PhoneOtpRequestedEvent.class)))
                     .thenReturn(future);
 
             // Should not throw exception even with short phone number
@@ -236,8 +236,8 @@ class KafkaSmsServiceTest {
             String message = "Test message";
 
             CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
-            future.complete(mock(SendResult.class));
-            when(kafkaTemplate.send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class)))
+            future.complete(null);
+            when(kafkaOperations.send(eq(GENERIC_SMS_TOPIC), eq(phoneNumber), any(KafkaSmsService.GenericSmsEvent.class)))
                     .thenReturn(future);
 
             // Should not throw exception even with null phone number

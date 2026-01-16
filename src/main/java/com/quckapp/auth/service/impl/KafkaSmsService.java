@@ -5,7 +5,7 @@ import com.quckapp.auth.service.SmsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @Slf4j
 public class KafkaSmsService implements SmsService {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaOperations<String, Object> kafkaOperations;
 
     @Value("${sms.kafka.topic:notification.sms.otp}")
     private String otpTopic;
@@ -44,7 +44,7 @@ public class KafkaSmsService implements SmsService {
                 .build();
 
         log.info("Publishing OTP event for phone: {}", maskPhoneNumber(phoneNumber));
-        kafkaTemplate.send(otpTopic, phoneNumber, event)
+        kafkaOperations.send(otpTopic, phoneNumber, event)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
                         log.error("Failed to publish OTP event for phone: {}",
@@ -67,7 +67,7 @@ public class KafkaSmsService implements SmsService {
         );
 
         log.info("Publishing generic SMS event for phone: {}", maskPhoneNumber(phoneNumber));
-        kafkaTemplate.send(genericSmsTopic, phoneNumber, event)
+        kafkaOperations.send(genericSmsTopic, phoneNumber, event)
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
                         log.error("Failed to publish SMS event for phone: {}",

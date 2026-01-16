@@ -64,8 +64,22 @@ class RateLimitIntegrationTest {
     @Autowired
     private RateLimitConfig config;
 
+    private boolean redisAvailable = false;
+
+    @BeforeAll
+    void checkRedisAvailability() {
+        try {
+            redisTemplate.getConnectionFactory().getConnection().ping();
+            redisAvailable = true;
+        } catch (Exception e) {
+            redisAvailable = false;
+            System.out.println("Redis not available - integration tests will be skipped");
+        }
+    }
+
     @BeforeEach
     void setUp() {
+        assumeTrue(redisAvailable, "Redis is not available - skipping integration test");
         // Clear Redis before each test
         try {
             redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();

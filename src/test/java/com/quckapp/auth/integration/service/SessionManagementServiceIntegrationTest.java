@@ -271,7 +271,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should mark session as trusted")
         @Transactional
-        @Disabled("Trusted session marking logic needs investigation")
         void shouldMarkSessionAsTrusted() {
             // Given
             testUser = createTestUser("trusted_" + System.currentTimeMillis() + "@test.com");

@@ -455,7 +455,6 @@ class LoginHistoryServiceIntegrationTest extends BaseServiceIntegrationTest {
         @Test
         @DisplayName("Should detect new country anomaly")
         @Transactional
-        @Disabled("Anomaly detection logic not creating NEW_COUNTRY anomalies - needs service investigation")
         void shouldDetectNewCountryAnomaly() {
             // Given
             testUser = createTestUser("new_country_" + System.currentTimeMillis() + "@test.com");
@@ -501,7 +500,6 @@ class LoginHistoryServiceIntegrationTest extends BaseServiceIntegrationTest {
         @Test
         @DisplayName("Should detect new device anomaly")
         @Transactional
-        @Disabled("Anomaly detection logic not creating NEW_DEVICE anomalies - needs service investigation")
         void shouldDetectNewDeviceAnomaly() {
             // Given
             testUser = createTestUser("new_device_" + System.currentTimeMillis() + "@test.com");

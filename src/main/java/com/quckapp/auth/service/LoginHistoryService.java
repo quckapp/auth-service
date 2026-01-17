@@ -74,11 +74,25 @@ public class LoginHistoryService implements LoginHistoryOperations {
                 .sessionId(request.getSessionId())
                 .build();
 
+        // Pre-compute new country/device BEFORE saving (so the current login isn't included in the query)
+        boolean isNewCountry = false;
+        boolean isNewDevice = false;
+        if (user != null && request.getLoginStatus() == LoginStatus.SUCCESS) {
+            if (request.getCountryCode() != null) {
+                List<String> knownCountries = loginHistoryRepository.findDistinctCountriesByUserId(user.getId());
+                isNewCountry = !knownCountries.contains(request.getCountryCode());
+            }
+            if (request.getDeviceId() != null) {
+                List<String> knownDevices = loginHistoryRepository.findDistinctDeviceIdsByUserId(user.getId());
+                isNewDevice = !knownDevices.contains(request.getDeviceId());
+            }
+        }
+
         history = loginHistoryRepository.save(history);
 
         // Check for anomalies if login was successful and user exists
         if (user != null && request.getLoginStatus() == LoginStatus.SUCCESS) {
-            detectAnomalies(user, history);
+            detectAnomalies(user, history, isNewCountry, isNewDevice);
         }
 
         log.info("Login recorded: {} - {}", request.getEmail(), request.getLoginStatus());
@@ -158,7 +172,7 @@ public class LoginHistoryService implements LoginHistoryOperations {
 
     // ==================== Anomaly Detection ====================
 
-    private void detectAnomalies(AuthUser user, LoginHistory history) {
+    private void detectAnomalies(AuthUser user, LoginHistory history, boolean isNewCountry, boolean isNewDevice) {
         List<CreateAnomalyRequest> anomalies = new ArrayList<>();
 
         // Check for VPN/Tor/Proxy
@@ -182,17 +196,15 @@ public class LoginHistoryService implements LoginHistoryOperations {
                     "High risk score: " + history.getRiskScore()));
         }
 
-        // Check for new country
-        List<String> knownCountries = loginHistoryRepository.findDistinctCountriesByUserId(user.getId());
-        if (history.getCountryCode() != null && !knownCountries.contains(history.getCountryCode())) {
+        // Check for new country (pre-computed before save)
+        if (isNewCountry) {
             anomalies.add(createAnomalyRequest(user.getId(), history.getId(),
                     AnomalyType.NEW_COUNTRY, AnomalySeverity.MEDIUM,
                     "Login from new country: " + history.getCountry()));
         }
 
-        // Check for new device
-        List<String> knownDevices = loginHistoryRepository.findDistinctDeviceIdsByUserId(user.getId());
-        if (history.getDeviceId() != null && !knownDevices.contains(history.getDeviceId())) {
+        // Check for new device (pre-computed before save)
+        if (isNewDevice) {
             anomalies.add(createAnomalyRequest(user.getId(), history.getId(),
                     AnomalyType.NEW_DEVICE, AnomalySeverity.LOW,
                     "Login from new device: " + history.getDeviceName()));

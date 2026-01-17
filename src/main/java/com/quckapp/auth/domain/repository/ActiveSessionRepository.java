@@ -64,7 +64,7 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, UU
     @Query("UPDATE ActiveSession s SET s.isActive = false WHERE s.user.id = :userId AND s.id != :excludeSessionId")
     int deactivateOtherSessions(@Param("userId") UUID userId, @Param("excludeSessionId") UUID excludeSessionId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE ActiveSession s SET s.isTrusted = true WHERE s.id = :sessionId")
     int markAsTrusted(@Param("sessionId") UUID sessionId);
 

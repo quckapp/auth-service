@@ -4,6 +4,8 @@ import com.quckapp.auth.domain.entity.OAuthConnection.OAuthProvider;
 import com.quckapp.auth.domain.repository.OAuthConnectionRepository;
 import com.quckapp.auth.security.oauth2.OAuth2Config;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,8 +71,9 @@ public class OAuth2Controller {
      */
     @GetMapping("/linked")
     @Operation(summary = "Get linked OAuth2 providers for current user")
+    @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<LinkedProvidersResponse> getLinkedProviders(
-            @RequestHeader("Authorization") String authHeader) {
+            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
         // This would typically extract user ID from JWT and query linked providers
         // For now, returning empty - the AuthService.getActiveSessions includes this info
         return ResponseEntity.ok(LinkedProvidersResponse.builder()

@@ -21,7 +21,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=redis_secret
       - KAFKA_BROKERS=kafka:9092
-      - JWT_SECRET=${JWT_SECRET:-your-256-bit-secret-key-change-in-production-must-be-at-least-32-chars}
+      - JWT_SECRET=${JWT_SECRET:-ZG9ja2VyLWRldi1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMzItY2hhcnM=}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-placeholder-client-id}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-placeholder-client-secret}
       - APPLE_CLIENT_ID=${APPLE_CLIENT_ID:-placeholder-apple-id}

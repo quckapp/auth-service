@@ -91,6 +91,7 @@ public class SessionDtos {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateSessionRequest {
+        private UUID sessionId;  // Session ID from JWT token
         private String sessionToken;
         private String deviceId;
         private String deviceName;

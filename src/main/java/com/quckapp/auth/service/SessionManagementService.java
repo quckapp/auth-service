@@ -53,6 +53,7 @@ public class SessionManagementService implements SessionManagementOperations {
         String tokenHash = passwordEncoder.encode(request.getSessionToken());
 
         ActiveSession session = ActiveSession.builder()
+                .id(request.getSessionId())  // Use session ID from JWT token
                 .user(user)
                 .sessionTokenHash(tokenHash)
                 .deviceId(request.getDeviceId())

@@ -639,6 +639,7 @@ public class AuthServiceImpl implements AuthService {
             }
 
             CreateSessionRequest sessionRequest = CreateSessionRequest.builder()
+                    .sessionId(UUID.fromString(sessionId))  // Pass session ID from JWT
                     .sessionToken(accessToken)
                     .deviceId(clientInfo.getDeviceId())
                     .deviceName(clientInfo.getDeviceName())

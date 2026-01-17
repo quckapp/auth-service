@@ -440,6 +440,22 @@ class AuthServiceImplTest {
 
             verify(tokenBlacklistService).blacklistToken(eq(token), eq(expiration), anyString());
         }
+
+        @Test
+        @DisplayName("should handle logout when session ID is null")
+        void shouldHandleLogoutWithNullSessionId() {
+            String token = "valid-token";
+            Date expiration = Date.from(Instant.now().plus(1, ChronoUnit.HOURS));
+
+            when(jwtService.extractUserId(token)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractExpiration(token)).thenReturn(expiration);
+            when(jwtService.extractSessionId(token)).thenReturn(null);
+
+            authService.logout(token, testClientInfo);
+
+            verify(tokenBlacklistService).blacklistToken(eq(token), eq(expiration), anyString());
+            verify(sessionManagementService, never()).terminateSession(any(UUID.class), anyString());
+        }
     }
 
     @Nested
@@ -537,6 +553,40 @@ class AuthServiceImplTest {
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Refresh token has expired");
         }
+
+        @Test
+        @DisplayName("should throw exception for wrong token type")
+        void shouldThrowForWrongTokenType() {
+            String accessToken = "access-token";
+            RefreshTokenRequest request = RefreshTokenRequest.builder()
+                    .refreshToken(accessToken)
+                    .build();
+
+            when(jwtService.validateToken(accessToken)).thenReturn(true);
+            when(jwtService.extractTokenType(accessToken)).thenReturn("access"); // Wrong type
+
+            assertThatThrownBy(() -> authService.refreshToken(request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Invalid token type");
+        }
+
+        @Test
+        @DisplayName("should throw exception when refresh token not found in database")
+        void shouldThrowWhenRefreshTokenNotFoundInDb() {
+            String refreshToken = "not-in-db-token";
+            RefreshTokenRequest request = RefreshTokenRequest.builder()
+                    .refreshToken(refreshToken)
+                    .build();
+
+            when(jwtService.validateToken(refreshToken)).thenReturn(true);
+            when(jwtService.extractTokenType(refreshToken)).thenReturn("refresh");
+            when(tokenBlacklistService.isBlacklisted(refreshToken)).thenReturn(false);
+            when(refreshTokenRepository.findByTokenAndRevokedFalse(refreshToken)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authService.refreshToken(request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Refresh token not found or revoked");
+        }
     }
 
     @Nested
@@ -601,6 +651,47 @@ class AuthServiceImplTest {
 
             assertThat(response.isValid()).isFalse();
         }
+
+        @Test
+        @DisplayName("should return invalid when token issued before user blacklist")
+        void shouldReturnInvalidWhenTokenIssuedBeforeBlacklist() {
+            String token = "old-token";
+            Date issuedAt = Date.from(Instant.now().minus(2, ChronoUnit.HOURS));
+
+            TokenValidationRequest request = TokenValidationRequest.builder()
+                    .token(token)
+                    .build();
+
+            when(jwtService.validateToken(token)).thenReturn(true);
+            when(tokenBlacklistService.isBlacklisted(token)).thenReturn(false);
+            when(jwtService.extractUserId(token)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractEmail(token)).thenReturn(testUser.getEmail());
+            when(jwtService.extractExternalId(token)).thenReturn(testUser.getExternalId());
+            when(jwtService.extractTokenType(token)).thenReturn("access");
+            when(jwtService.extractIssuedAt(token)).thenReturn(issuedAt);
+            when(tokenBlacklistService.isTokenIssuedBeforeBlacklist(anyString(), anyLong())).thenReturn(true);
+
+            TokenValidationResponse response = authService.validateToken(request);
+
+            assertThat(response.isValid()).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return invalid when exception occurs during validation")
+        void shouldReturnInvalidOnException() {
+            String token = "bad-token";
+            TokenValidationRequest request = TokenValidationRequest.builder()
+                    .token(token)
+                    .build();
+
+            when(jwtService.validateToken(token)).thenReturn(true);
+            when(tokenBlacklistService.isBlacklisted(token)).thenReturn(false);
+            when(jwtService.extractUserId(token)).thenThrow(new RuntimeException("Parse error"));
+
+            TokenValidationResponse response = authService.validateToken(request);
+
+            assertThat(response.isValid()).isFalse();
+        }
     }
 
     @Nested
@@ -639,6 +730,27 @@ class AuthServiceImplTest {
             verify(tokenBlacklistService).blacklistAllUserTokens(testUser.getId().toString());
             verify(refreshTokenRepository).revokeAllUserTokens(eq(testUser.getId()), any(Instant.class), anyString());
             verify(sessionManagementService).terminateAllUserSessions(eq(testUser.getId()), anyString());
+        }
+
+        @Test
+        @DisplayName("should revoke refresh token and update database")
+        void shouldRevokeRefreshTokenAndUpdateDb() {
+            String accessToken = "caller-access-token";
+            String refreshToken = "refresh-token-to-revoke";
+            Date expiration = Date.from(Instant.now().plus(7, ChronoUnit.DAYS));
+
+            RevokeTokenRequest request = RevokeTokenRequest.builder()
+                    .token(refreshToken)
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractExpiration(refreshToken)).thenReturn(expiration);
+            when(jwtService.extractTokenType(refreshToken)).thenReturn("refresh");
+
+            authService.revokeToken(accessToken, request, testClientInfo);
+
+            verify(tokenBlacklistService).blacklistToken(eq(refreshToken), eq(expiration), anyString());
+            verify(refreshTokenRepository).revokeByToken(eq(refreshToken), any(Instant.class), eq("Manual revocation"));
         }
     }
 
@@ -696,6 +808,59 @@ class AuthServiceImplTest {
             verify(tokenBlacklistService).blacklistAllUserTokens(testUser.getId().toString());
             verify(sessionManagementService).terminateAllUserSessions(eq(testUser.getId()), anyString());
             verify(userEventPublisher).publishPasswordChanged(testUser);
+        }
+
+        @Test
+        @DisplayName("should throw exception for invalid reset token")
+        void shouldThrowForInvalidResetToken() {
+            String resetToken = "invalid-reset-token";
+            ResetPasswordRequest request = ResetPasswordRequest.builder()
+                    .token(resetToken)
+                    .newPassword("newPassword123")
+                    .build();
+
+            when(jwtService.validateToken(resetToken)).thenReturn(false);
+
+            assertThatThrownBy(() -> authService.resetPassword(request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Invalid or expired reset token");
+        }
+
+        @Test
+        @DisplayName("should throw exception for wrong reset token type")
+        void shouldThrowForWrongResetTokenType() {
+            String resetToken = "access-token";
+            ResetPasswordRequest request = ResetPasswordRequest.builder()
+                    .token(resetToken)
+                    .newPassword("newPassword123")
+                    .build();
+
+            when(jwtService.validateToken(resetToken)).thenReturn(true);
+            when(jwtService.extractTokenType(resetToken)).thenReturn("access"); // Wrong type
+
+            assertThatThrownBy(() -> authService.resetPassword(request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Invalid token type");
+        }
+
+        @Test
+        @DisplayName("should throw exception when user not found during reset")
+        void shouldThrowWhenUserNotFoundDuringReset() {
+            String resetToken = "valid-reset-token";
+            UUID unknownUserId = UUID.randomUUID();
+            ResetPasswordRequest request = ResetPasswordRequest.builder()
+                    .token(resetToken)
+                    .newPassword("newPassword123")
+                    .build();
+
+            when(jwtService.validateToken(resetToken)).thenReturn(true);
+            when(jwtService.extractTokenType(resetToken)).thenReturn("password_reset");
+            when(jwtService.extractUserId(resetToken)).thenReturn(unknownUserId.toString());
+            when(authUserRepository.findById(unknownUserId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authService.resetPassword(request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("User not found");
         }
 
         @Test
@@ -869,6 +1034,97 @@ class AuthServiceImplTest {
         }
 
         @Test
+        @DisplayName("should throw exception when provider user already linked to another account")
+        void shouldThrowWhenProviderUserLinkedToAnother() {
+            String accessToken = "access-token";
+            OAuthRequest request = OAuthRequest.builder()
+                    .providerUserId("github-123")
+                    .accessToken("oauth-access-token")
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(authUserRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+            when(oauthConnectionRepository.existsByUserIdAndProvider(testUser.getId(), OAuthConnection.OAuthProvider.GITHUB))
+                    .thenReturn(false);
+            when(oauthConnectionRepository.existsByProviderAndProviderUserId(OAuthConnection.OAuthProvider.GITHUB, "github-123"))
+                    .thenReturn(true); // Already linked to another account
+
+            assertThatThrownBy(() -> authService.linkOAuthProvider(accessToken, "github", request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("already linked to another user");
+        }
+
+        @Test
+        @DisplayName("should throw exception for unsupported OAuth provider")
+        void shouldThrowForUnsupportedProvider() {
+            String accessToken = "access-token";
+            OAuthRequest request = OAuthRequest.builder()
+                    .providerUserId("unknown-123")
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(authUserRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+
+            assertThatThrownBy(() -> authService.linkOAuthProvider(accessToken, "unknown_provider", request, testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Unsupported OAuth provider");
+        }
+
+        @Test
+        @DisplayName("should link OAuth to existing user by email")
+        void shouldLinkOAuthToExistingUserByEmail() {
+            OAuthRequest request = OAuthRequest.builder()
+                    .providerUserId("google-789")
+                    .accessToken("oauth-access-token")
+                    .email(testUser.getEmail()) // Existing user's email
+                    .build();
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(
+                    OAuthConnection.OAuthProvider.GOOGLE, "google-789"))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(testUser.getEmail())).thenReturn(Optional.of(testUser));
+            when(authUserRepository.save(any())).thenReturn(testUser);
+            when(jwtService.generateAccessToken(any())).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
+            when(jwtService.getAccessTokenExpiration()).thenReturn(3600L);
+
+            AuthResponse response = authService.oauthLogin("google", request, testClientInfo);
+
+            assertThat(response.getAccessToken()).isEqualTo("access-token");
+            // Should save connection but not create new user
+            verify(oauthConnectionRepository).save(any(OAuthConnection.class));
+            verify(authUserRepository, times(1)).save(any(AuthUser.class)); // Only update last login
+        }
+
+        @Test
+        @DisplayName("should create OAuth user with null email")
+        void shouldCreateOAuthUserWithNullEmail() {
+            OAuthRequest request = OAuthRequest.builder()
+                    .providerUserId("google-999")
+                    .accessToken("oauth-access-token")
+                    .email(null) // No email provided
+                    .build();
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(
+                    OAuthConnection.OAuthProvider.GOOGLE, "google-999"))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class))).thenAnswer(invocation -> {
+                AuthUser user = invocation.getArgument(0);
+                user.setId(UUID.randomUUID());
+                user.setOauthConnections(new HashSet<>());
+                return user;
+            });
+            when(jwtService.generateAccessToken(any())).thenReturn("access-token");
+            when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
+            when(jwtService.getAccessTokenExpiration()).thenReturn(3600L);
+
+            AuthResponse response = authService.oauthLogin("google", request, testClientInfo);
+
+            assertThat(response.getAccessToken()).isEqualTo("access-token");
+            verify(authUserRepository, times(2)).save(any(AuthUser.class)); // Create and update
+        }
+
+        @Test
         @DisplayName("should unlink OAuth provider when user has password")
         void shouldUnlinkOAuthProviderWithPassword() {
             String accessToken = "access-token";
@@ -897,6 +1153,54 @@ class AuthServiceImplTest {
             assertThatThrownBy(() -> authService.unlinkOAuthProvider(accessToken, "google", testClientInfo))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Cannot unlink the only authentication method");
+        }
+
+        @Test
+        @DisplayName("should not allow unlinking last auth method with empty password")
+        void shouldNotAllowUnlinkingLastAuthMethodWithEmptyPassword() {
+            testUser.setPasswordHash(""); // Empty password
+            String accessToken = "access-token";
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(authUserRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+            when(oauthConnectionRepository.countByUserId(testUser.getId())).thenReturn(1);
+
+            assertThatThrownBy(() -> authService.unlinkOAuthProvider(accessToken, "google", testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Cannot unlink the only authentication method");
+        }
+
+        @Test
+        @DisplayName("should throw exception when provider not linked during unlink")
+        void shouldThrowWhenProviderNotLinked() {
+            String accessToken = "access-token";
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(authUserRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+            when(oauthConnectionRepository.countByUserId(testUser.getId())).thenReturn(2); // Has other connections
+            when(oauthConnectionRepository.deleteByUserIdAndProvider(testUser.getId(), OAuthConnection.OAuthProvider.FACEBOOK))
+                    .thenReturn(0); // No rows deleted
+
+            assertThatThrownBy(() -> authService.unlinkOAuthProvider(accessToken, "facebook", testClientInfo))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Provider not linked to this account");
+        }
+
+        @Test
+        @DisplayName("should allow unlinking when user has multiple OAuth connections")
+        void shouldAllowUnlinkingWithMultipleConnections() {
+            testUser.setPasswordHash(null); // No password
+            String accessToken = "access-token";
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(authUserRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+            when(oauthConnectionRepository.countByUserId(testUser.getId())).thenReturn(2); // Multiple connections
+            when(oauthConnectionRepository.deleteByUserIdAndProvider(testUser.getId(), OAuthConnection.OAuthProvider.GOOGLE))
+                    .thenReturn(1);
+
+            authService.unlinkOAuthProvider(accessToken, "google", testClientInfo);
+
+            verify(oauthConnectionRepository).deleteByUserIdAndProvider(testUser.getId(), OAuthConnection.OAuthProvider.GOOGLE);
         }
     }
 
@@ -989,6 +1293,127 @@ class AuthServiceImplTest {
                     UUID.fromString(currentSessionId),
                     "User requested"
             );
+        }
+
+        @Test
+        @DisplayName("should terminate all sessions when current session ID is null")
+        void shouldTerminateAllSessionsWhenNoCurrentSessionId() {
+            String accessToken = "access-token";
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractSessionId(accessToken)).thenReturn(null); // No session ID
+
+            authService.terminateAllOtherSessions(accessToken, testClientInfo);
+
+            // Should call terminateAllUserSessions instead of terminateOtherSessions
+            verify(sessionManagementService).terminateAllUserSessions(
+                    testUser.getId(),
+                    "User requested"
+            );
+            verify(sessionManagementService, never()).terminateOtherSessions(any(), any(), anyString());
+        }
+
+        @Test
+        @DisplayName("should format location with city and country")
+        void shouldFormatLocationWithCityAndCountry() {
+            String accessToken = "access-token";
+            String sessionId = UUID.randomUUID().toString();
+
+            ActiveSessionDto session = ActiveSessionDto.builder()
+                    .id(UUID.fromString(sessionId))
+                    .userId(testUser.getId())
+                    .deviceName("Device 1")
+                    .deviceType("Desktop")
+                    .ipAddress("192.168.1.1")
+                    .city("San Francisco")
+                    .country("US")
+                    .lastActivityAt(Instant.now())
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractSessionId(accessToken)).thenReturn(sessionId);
+            when(sessionManagementService.getActiveSessions(testUser.getId()))
+                    .thenReturn(Collections.singletonList(session));
+
+            SessionsResponse response = authService.getActiveSessions(accessToken);
+
+            assertThat(response.getSessions().get(0).getLocation()).isEqualTo("San Francisco, US");
+        }
+
+        @Test
+        @DisplayName("should format location with country only")
+        void shouldFormatLocationWithCountryOnly() {
+            String accessToken = "access-token";
+            String sessionId = UUID.randomUUID().toString();
+
+            ActiveSessionDto session = ActiveSessionDto.builder()
+                    .id(UUID.fromString(sessionId))
+                    .userId(testUser.getId())
+                    .city(null)
+                    .country("US")
+                    .lastActivityAt(Instant.now())
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractSessionId(accessToken)).thenReturn(sessionId);
+            when(sessionManagementService.getActiveSessions(testUser.getId()))
+                    .thenReturn(Collections.singletonList(session));
+
+            SessionsResponse response = authService.getActiveSessions(accessToken);
+
+            assertThat(response.getSessions().get(0).getLocation()).isEqualTo("US");
+        }
+
+        @Test
+        @DisplayName("should format location with city only")
+        void shouldFormatLocationWithCityOnly() {
+            String accessToken = "access-token";
+            String sessionId = UUID.randomUUID().toString();
+
+            ActiveSessionDto session = ActiveSessionDto.builder()
+                    .id(UUID.fromString(sessionId))
+                    .userId(testUser.getId())
+                    .city("New York")
+                    .country(null)
+                    .lastActivityAt(Instant.now())
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractSessionId(accessToken)).thenReturn(sessionId);
+            when(sessionManagementService.getActiveSessions(testUser.getId()))
+                    .thenReturn(Collections.singletonList(session));
+
+            SessionsResponse response = authService.getActiveSessions(accessToken);
+
+            assertThat(response.getSessions().get(0).getLocation()).isEqualTo("New York");
+        }
+
+        @Test
+        @DisplayName("should format location as Unknown when both city and country null")
+        void shouldFormatLocationAsUnknown() {
+            String accessToken = "access-token";
+            String sessionId = UUID.randomUUID().toString();
+
+            ActiveSessionDto session = ActiveSessionDto.builder()
+                    .id(UUID.fromString(sessionId))
+                    .userId(testUser.getId())
+                    .city(null)
+                    .country(null)
+                    .lastActivityAt(Instant.now())
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
+            when(jwtService.extractSessionId(accessToken)).thenReturn(sessionId);
+            when(sessionManagementService.getActiveSessions(testUser.getId()))
+                    .thenReturn(Collections.singletonList(session));
+
+            SessionsResponse response = authService.getActiveSessions(accessToken);
+
+            assertThat(response.getSessions().get(0).getLocation()).isEqualTo("Unknown");
         }
     }
 }

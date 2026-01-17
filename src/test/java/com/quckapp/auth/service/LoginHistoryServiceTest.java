@@ -469,4 +469,612 @@ class LoginHistoryServiceTest {
             verify(anomalyRepository).deleteResolvedOlderThan(any(Instant.class));
         }
     }
+
+    @Nested
+    @DisplayName("Anomaly detection tests")
+    class AnomalyDetectionTests {
+
+        @Test
+        @DisplayName("should detect VPN anomaly on successful login")
+        void shouldDetectVpnAnomaly() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .vpn(true)
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository, atLeastOnce()).save(captor.capture());
+            assertThat(captor.getAllValues()).anyMatch(a -> a.getAnomalyType() == AnomalyType.VPN_DETECTED);
+        }
+
+        @Test
+        @DisplayName("should detect Tor anomaly on successful login")
+        void shouldDetectTorAnomaly() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .tor(true)
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository, atLeastOnce()).save(captor.capture());
+            assertThat(captor.getAllValues()).anyMatch(a -> a.getAnomalyType() == AnomalyType.TOR_DETECTED);
+        }
+
+        @Test
+        @DisplayName("should detect Proxy anomaly on successful login")
+        void shouldDetectProxyAnomaly() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .proxy(true)
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository, atLeastOnce()).save(captor.capture());
+            assertThat(captor.getAllValues()).anyMatch(a -> a.getAnomalyType() == AnomalyType.PROXY_DETECTED);
+        }
+
+        @Test
+        @DisplayName("should detect high risk IP anomaly")
+        void shouldDetectHighRiskIpAnomaly() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .riskScore(85)
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository, atLeastOnce()).save(captor.capture());
+            assertThat(captor.getAllValues()).anyMatch(a -> a.getAnomalyType() == AnomalyType.HIGH_RISK_IP);
+        }
+
+        @Test
+        @DisplayName("should detect new country anomaly")
+        void shouldDetectNewCountryAnomaly() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .countryCode("DE")
+                    .country("Germany")
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.findDistinctCountriesByUserId(testUserId)).thenReturn(Arrays.asList("US", "UK"));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository, atLeastOnce()).save(captor.capture());
+            assertThat(captor.getAllValues()).anyMatch(a -> a.getAnomalyType() == AnomalyType.NEW_COUNTRY);
+        }
+
+        @Test
+        @DisplayName("should detect new device anomaly")
+        void shouldDetectNewDeviceAnomaly() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .deviceId("new-device-123")
+                    .deviceName("New Phone")
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.findDistinctDeviceIdsByUserId(testUserId)).thenReturn(Arrays.asList("device-1", "device-2"));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository, atLeastOnce()).save(captor.capture());
+            assertThat(captor.getAllValues()).anyMatch(a -> a.getAnomalyType() == AnomalyType.NEW_DEVICE);
+        }
+
+        @Test
+        @DisplayName("should not detect anomalies for known country")
+        void shouldNotDetectAnomalyForKnownCountry() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .countryCode("US")
+                    .country("United States")
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.findDistinctCountriesByUserId(testUserId)).thenReturn(Arrays.asList("US", "UK"));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            verify(anomalyRepository, never()).save(any(LoginAnomaly.class));
+        }
+
+        @Test
+        @DisplayName("should not detect anomalies for failed login")
+        void shouldNotDetectAnomaliesForFailedLogin() {
+            RecordLoginRequest request = RecordLoginRequest.builder()
+                    .userId(testUserId)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.FAILED)
+                    .loginMethod(LoginMethod.PASSWORD)
+                    .ipAddress("192.168.1.1")
+                    .vpn(true)
+                    .tor(true)
+                    .riskScore(95)
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.save(any(LoginHistory.class))).thenAnswer(invocation -> {
+                LoginHistory history = invocation.getArgument(0);
+                history.setId(UUID.randomUUID());
+                return history;
+            });
+
+            loginHistoryService.recordLogin(request);
+
+            verify(anomalyRepository, never()).save(any(LoginAnomaly.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("High risk login tests")
+    class HighRiskLoginTests {
+
+        @Test
+        @DisplayName("should get high risk logins")
+        void shouldGetHighRiskLogins() {
+            Pageable pageable = PageRequest.of(0, 10);
+            LoginHistory highRiskLogin = LoginHistory.builder()
+                    .id(UUID.randomUUID())
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .riskScore(85)
+                    .createdAt(Instant.now())
+                    .build();
+            Page<LoginHistory> page = new PageImpl<>(Collections.singletonList(highRiskLogin));
+
+            when(loginHistoryRepository.findHighRiskLogins(70, pageable)).thenReturn(page);
+
+            Page<LoginHistoryDto> result = loginHistoryService.getHighRiskLogins(70, pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).getRiskScore()).isEqualTo(85);
+        }
+
+        @Test
+        @DisplayName("should get suspicious logins for user")
+        void shouldGetSuspiciousLoginsForUser() {
+            LoginHistory suspiciousLogin = LoginHistory.builder()
+                    .id(UUID.randomUUID())
+                    .user(testUser)
+                    .email("test@example.com")
+                    .loginStatus(LoginStatus.SUCCESS)
+                    .riskScore(80)
+                    .isVpn(true)
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(loginHistoryRepository.findSuspiciousLoginsByUserId(testUserId, 70))
+                    .thenReturn(Collections.singletonList(suspiciousLogin));
+
+            List<LoginHistoryDto> result = loginHistoryService.getSuspiciousLogins(testUserId);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).isVpn()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Additional anomaly retrieval tests")
+    class AdditionalAnomalyRetrievalTests {
+
+        @Test
+        @DisplayName("should get anomaly by ID")
+        void shouldGetAnomalyById() {
+            UUID anomalyId = UUID.randomUUID();
+            LoginAnomaly anomaly = LoginAnomaly.builder()
+                    .id(anomalyId)
+                    .user(testUser)
+                    .anomalyType(AnomalyType.VPN_DETECTED)
+                    .severity(AnomalySeverity.LOW)
+                    .description("VPN detected")
+                    .isResolved(false)
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(anomalyRepository.findById(anomalyId)).thenReturn(Optional.of(anomaly));
+
+            LoginAnomalyDto result = loginHistoryService.getAnomaly(anomalyId);
+
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(anomalyId);
+            assertThat(result.getAnomalyType()).isEqualTo(AnomalyType.VPN_DETECTED);
+        }
+
+        @Test
+        @DisplayName("should throw when anomaly not found")
+        void shouldThrowWhenAnomalyNotFound() {
+            UUID anomalyId = UUID.randomUUID();
+            when(anomalyRepository.findById(anomalyId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> loginHistoryService.getAnomaly(anomalyId))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Anomaly not found");
+        }
+
+        @Test
+        @DisplayName("should get all unresolved anomalies")
+        void shouldGetAllUnresolvedAnomalies() {
+            Pageable pageable = PageRequest.of(0, 10);
+            LoginAnomaly anomaly = LoginAnomaly.builder()
+                    .id(UUID.randomUUID())
+                    .user(testUser)
+                    .anomalyType(AnomalyType.HIGH_RISK_IP)
+                    .severity(AnomalySeverity.HIGH)
+                    .isResolved(false)
+                    .createdAt(Instant.now())
+                    .build();
+            Page<LoginAnomaly> page = new PageImpl<>(Collections.singletonList(anomaly));
+
+            when(anomalyRepository.findByIsResolvedFalseOrderByCreatedAtDesc(pageable)).thenReturn(page);
+
+            Page<LoginAnomalyDto> result = loginHistoryService.getAllUnresolvedAnomalies(pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).isResolved()).isFalse();
+        }
+
+        @Test
+        @DisplayName("should get critical anomalies")
+        void shouldGetCriticalAnomalies() {
+            LoginAnomaly criticalAnomaly = LoginAnomaly.builder()
+                    .id(UUID.randomUUID())
+                    .user(testUser)
+                    .anomalyType(AnomalyType.TOR_DETECTED)
+                    .severity(AnomalySeverity.CRITICAL)
+                    .isResolved(false)
+                    .createdAt(Instant.now())
+                    .build();
+
+            when(anomalyRepository.findCriticalUnresolved())
+                    .thenReturn(Collections.singletonList(criticalAnomaly));
+
+            List<LoginAnomalyDto> result = loginHistoryService.getCriticalAnomalies();
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getSeverity()).isEqualTo(AnomalySeverity.CRITICAL);
+        }
+    }
+
+    @Nested
+    @DisplayName("Create anomaly edge case tests")
+    class CreateAnomalyEdgeCaseTests {
+
+        @Test
+        @DisplayName("should create anomaly with login history")
+        void shouldCreateAnomalyWithLoginHistory() {
+            UUID loginHistoryId = testLoginHistory.getId();
+            CreateAnomalyRequest request = CreateAnomalyRequest.builder()
+                    .userId(testUserId)
+                    .loginHistoryId(loginHistoryId)
+                    .anomalyType(AnomalyType.NEW_DEVICE)
+                    .severity(AnomalySeverity.LOW)
+                    .description("Login from new device")
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.findById(loginHistoryId)).thenReturn(Optional.of(testLoginHistory));
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            LoginAnomalyDto result = loginHistoryService.createAnomaly(request);
+
+            assertThat(result).isNotNull();
+            verify(loginHistoryRepository).findById(loginHistoryId);
+        }
+
+        @Test
+        @DisplayName("should use default severity when not provided")
+        void shouldUseDefaultSeverityWhenNotProvided() {
+            CreateAnomalyRequest request = CreateAnomalyRequest.builder()
+                    .userId(testUserId)
+                    .anomalyType(AnomalyType.VPN_DETECTED)
+                    .severity(null)
+                    .description("VPN detected")
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            loginHistoryService.createAnomaly(request);
+
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository).save(captor.capture());
+            assertThat(captor.getValue().getSeverity()).isEqualTo(AnomalySeverity.MEDIUM);
+        }
+
+        @Test
+        @DisplayName("should throw when user not found for anomaly")
+        void shouldThrowWhenUserNotFoundForAnomaly() {
+            CreateAnomalyRequest request = CreateAnomalyRequest.builder()
+                    .userId(UUID.randomUUID())
+                    .anomalyType(AnomalyType.VPN_DETECTED)
+                    .description("VPN detected")
+                    .build();
+
+            when(authUserRepository.findById(any(UUID.class))).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> loginHistoryService.createAnomaly(request))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("User not found");
+        }
+
+        @Test
+        @DisplayName("should handle missing login history gracefully")
+        void shouldHandleMissingLoginHistoryGracefully() {
+            UUID nonExistentLoginHistoryId = UUID.randomUUID();
+            CreateAnomalyRequest request = CreateAnomalyRequest.builder()
+                    .userId(testUserId)
+                    .loginHistoryId(nonExistentLoginHistoryId)
+                    .anomalyType(AnomalyType.HIGH_RISK_IP)
+                    .severity(AnomalySeverity.HIGH)
+                    .description("High risk IP")
+                    .build();
+
+            when(authUserRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
+            when(loginHistoryRepository.findById(nonExistentLoginHistoryId)).thenReturn(Optional.empty());
+            when(anomalyRepository.save(any(LoginAnomaly.class))).thenAnswer(invocation -> {
+                LoginAnomaly anomaly = invocation.getArgument(0);
+                anomaly.setId(UUID.randomUUID());
+                anomaly.setCreatedAt(Instant.now());
+                return anomaly;
+            });
+
+            LoginAnomalyDto result = loginHistoryService.createAnomaly(request);
+
+            assertThat(result).isNotNull();
+            ArgumentCaptor<LoginAnomaly> captor = ArgumentCaptor.forClass(LoginAnomaly.class);
+            verify(anomalyRepository).save(captor.capture());
+            assertThat(captor.getValue().getLoginHistory()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("Statistics tests")
+    class StatisticsTests {
+
+        @Test
+        @DisplayName("should get login statistics")
+        void shouldGetLoginStatistics() {
+            Object[] successStatus = new Object[]{LoginStatus.SUCCESS, 100L};
+            Object[] failedStatus = new Object[]{LoginStatus.FAILED, 20L};
+
+            Object[] passwordMethod = new Object[]{LoginMethod.PASSWORD, 80L};
+            Object[] oauthMethod = new Object[]{LoginMethod.OAUTH_GOOGLE, 20L};
+
+            Object[] usCountry = new Object[]{"US", 70L};
+            Object[] ukCountry = new Object[]{"UK", 30L};
+
+            Object[] dailyCount = new Object[]{"2026-01-17", 50L};
+
+            when(loginHistoryRepository.countByLoginStatusSince(any(Instant.class)))
+                    .thenReturn(Arrays.asList(successStatus, failedStatus));
+            when(loginHistoryRepository.countSuccessfulByLoginMethodSince(any(Instant.class)))
+                    .thenReturn(Arrays.asList(passwordMethod, oauthMethod));
+            when(loginHistoryRepository.countByCountrySince(any(Instant.class)))
+                    .thenReturn(Arrays.asList(usCountry, ukCountry));
+            when(loginHistoryRepository.countDailyLoginsSince(any(Instant.class)))
+                    .thenReturn(Collections.singletonList(dailyCount));
+
+            LoginStatisticsDto result = loginHistoryService.getLoginStatistics(30);
+
+            assertThat(result.getTotalLogins()).isEqualTo(120);
+            assertThat(result.getSuccessfulLogins()).isEqualTo(100);
+            assertThat(result.getFailedLogins()).isEqualTo(20);
+            assertThat(result.getLoginsByStatus()).containsEntry("SUCCESS", 100L);
+            assertThat(result.getLoginsByStatus()).containsEntry("FAILED", 20L);
+            assertThat(result.getLoginsByMethod()).containsEntry("PASSWORD", 80L);
+            assertThat(result.getLoginsByCountry()).containsEntry("US", 70L);
+            assertThat(result.getDailyLogins()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("should handle empty login statistics")
+        void shouldHandleEmptyLoginStatistics() {
+            when(loginHistoryRepository.countByLoginStatusSince(any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+            when(loginHistoryRepository.countSuccessfulByLoginMethodSince(any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+            when(loginHistoryRepository.countByCountrySince(any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+            when(loginHistoryRepository.countDailyLoginsSince(any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+
+            LoginStatisticsDto result = loginHistoryService.getLoginStatistics(7);
+
+            assertThat(result.getTotalLogins()).isEqualTo(0);
+            assertThat(result.getSuccessfulLogins()).isEqualTo(0);
+            assertThat(result.getFailedLogins()).isEqualTo(0);
+            assertThat(result.getLoginsByStatus()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should get anomaly statistics")
+        void shouldGetAnomalyStatistics() {
+            Object[] vpnType = new Object[]{AnomalyType.VPN_DETECTED, 50L};
+            Object[] torType = new Object[]{AnomalyType.TOR_DETECTED, 10L};
+
+            Object[] highSeverity = new Object[]{AnomalySeverity.HIGH, 5L};
+            Object[] mediumSeverity = new Object[]{AnomalySeverity.MEDIUM, 15L};
+
+            Object[] dailyCount = new Object[]{"2026-01-17", 20L};
+
+            when(anomalyRepository.countByTypeSince(any(Instant.class)))
+                    .thenReturn(Arrays.asList(vpnType, torType));
+            when(anomalyRepository.countUnresolvedBySeverity())
+                    .thenReturn(Arrays.asList(highSeverity, mediumSeverity));
+            when(anomalyRepository.countDailyAnomaliesSince(any(Instant.class)))
+                    .thenReturn(Collections.singletonList(dailyCount));
+            when(anomalyRepository.countAllUnresolved()).thenReturn(20L);
+
+            AnomalyStatisticsDto result = loginHistoryService.getAnomalyStatistics(30);
+
+            assertThat(result.getTotalAnomalies()).isEqualTo(60);
+            assertThat(result.getUnresolvedAnomalies()).isEqualTo(20);
+            assertThat(result.getAnomaliesByType()).containsEntry("VPN_DETECTED", 50L);
+            assertThat(result.getAnomaliesByType()).containsEntry("TOR_DETECTED", 10L);
+            assertThat(result.getUnresolvedBySeverity()).containsEntry("HIGH", 5L);
+            assertThat(result.getDailyAnomalies()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("should handle empty anomaly statistics")
+        void shouldHandleEmptyAnomalyStatistics() {
+            when(anomalyRepository.countByTypeSince(any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+            when(anomalyRepository.countUnresolvedBySeverity())
+                    .thenReturn(Collections.emptyList());
+            when(anomalyRepository.countDailyAnomaliesSince(any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+            when(anomalyRepository.countAllUnresolved()).thenReturn(0L);
+
+            AnomalyStatisticsDto result = loginHistoryService.getAnomalyStatistics(7);
+
+            assertThat(result.getTotalAnomalies()).isEqualTo(0);
+            assertThat(result.getUnresolvedAnomalies()).isEqualTo(0);
+            assertThat(result.getAnomaliesByType()).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("IP blocking tests")
+    class IpBlockingTests {
+
+        @Test
+        @DisplayName("should not block IP when under threshold")
+        void shouldNotBlockIpWhenUnderThreshold() {
+            when(loginHistoryRepository.countFailedAttemptsFromIpSince(eq("192.168.1.1"), any(Instant.class)))
+                    .thenReturn(10);
+
+            boolean result = loginHistoryService.isIpBlocked("192.168.1.1");
+
+            assertThat(result).isFalse();
+        }
+    }
 }

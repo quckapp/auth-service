@@ -185,13 +185,12 @@
             <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
-        <!-- ByteBuddy with Java 21 support -->
+        <!-- ByteBuddy - use Spring Boot managed version for runtime compatibility -->
         <dependency>
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy</artifactId>
-            <version>${byte-buddy.version}</version>
-            <scope>test</scope>
         </dependency>
+        <!-- ByteBuddy agent for tests with Java 21+ support -->
         <dependency>
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy-agent</artifactId>
@@ -206,6 +205,11 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

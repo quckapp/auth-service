@@ -1,15 +1,12 @@
 package com.quckapp.auth.config;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.info.Contact;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.info.License;
-import io.swagger.v3.oas.annotations.security.SecurityScheme;
-import io.swagger.v3.oas.annotations.security.SecuritySchemes;
 import io.swagger.v3.oas.annotations.servers.Server;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -82,36 +79,7 @@ import org.springframework.context.annotation.Configuration;
         @Tag(name = "Internal", description = "Internal service-to-service endpoints")
     }
 )
-@SecuritySchemes({
-    @SecurityScheme(
-        name = "bearerAuth",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "JWT",
-        description = """
-            JWT Bearer token authentication.
-
-            Obtain a token by calling `/v1/login` with valid credentials.
-            Include the token in the Authorization header:
-            `Authorization: Bearer <token>`
-
-            Access tokens expire after 15 minutes. Use `/v1/token/refresh` to obtain a new access token.
-            """
-    ),
-    @SecurityScheme(
-        name = "apiKey",
-        type = SecuritySchemeType.APIKEY,
-        in = SecuritySchemeIn.HEADER,
-        parameterName = "X-API-Key",
-        description = """
-            API Key authentication for internal services.
-
-            Used for service-to-service communication.
-            Include the key in the X-API-Key header:
-            `X-API-Key: <your-api-key>`
-            """
-    )
-})
+// Security schemes are configured programmatically in customOpenAPI() bean
 public class OpenApiConfig {
 
     /**
@@ -215,6 +183,42 @@ public class OpenApiConfig {
             .displayName("All Endpoints")
             .pathsToMatch("/v1/**")
             .build();
+    }
+
+    /**
+     * Configure security schemes programmatically.
+     * This ensures the Authorize button appears in Swagger UI.
+     */
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+            .components(new Components()
+                .addSecuritySchemes("bearerAuth",
+                    new io.swagger.v3.oas.models.security.SecurityScheme()
+                        .type(io.swagger.v3.oas.models.security.SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")
+                        .description("""
+                            JWT Bearer token authentication.
+
+                            Obtain a token by calling `/v1/login` with valid credentials.
+                            Include the token in the Authorization header:
+                            `Authorization: Bearer <token>`
+
+                            Access tokens expire after 15 minutes. Use `/v1/token/refresh` to obtain a new access token.
+                            """))
+                .addSecuritySchemes("apiKey",
+                    new io.swagger.v3.oas.models.security.SecurityScheme()
+                        .type(io.swagger.v3.oas.models.security.SecurityScheme.Type.APIKEY)
+                        .in(io.swagger.v3.oas.models.security.SecurityScheme.In.HEADER)
+                        .name("X-API-Key")
+                        .description("""
+                            API Key authentication for internal services.
+
+                            Used for service-to-service communication.
+                            Include the key in the X-API-Key header:
+                            `X-API-Key: <your-api-key>`
+                            """)));
     }
 
     /**

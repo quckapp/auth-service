@@ -279,6 +279,203 @@ class RateLimitAspectTest {
 
             verify(rateLimitService).checkRateLimit(eq("ip:192.168.1.1"), anyInt(), anyInt());
         }
+
+        @Test
+        @DisplayName("should fall back to IP when API key is empty")
+        void shouldFallbackToIpWhenApiKeyEmpty() throws Throwable {
+            setupMocksForApiKeyRateLimitedMethod();
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader("X-API-Key", "");
+            request.setRemoteAddr("192.168.1.1");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(eq("ip:192.168.1.1"), anyInt(), anyInt());
+
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Nested
+    @DisplayName("User Endpoint key type tests")
+    class UserEndpointKeyTests {
+
+        @Test
+        @DisplayName("should build user endpoint key for authenticated user")
+        void shouldBuildUserEndpointKeyForAuthenticatedUser() throws Throwable {
+            setupMocksForUserEndpointRateLimitedMethod();
+            setupMockRequest("192.168.1.1");
+            setupAuthentication("user789");
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(
+                    eq("user:user789:RateLimitAspectTest.userEndpointLimitedMethod"),
+                    anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("should fall back to IP endpoint key when not authenticated")
+        void shouldFallbackToIpEndpointWhenNotAuthenticated() throws Throwable {
+            setupMocksForUserEndpointRateLimitedMethod();
+            setupMockRequest("10.0.0.5");
+            clearAuthentication();
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(
+                    eq("ip:10.0.0.5:RateLimitAspectTest.userEndpointLimitedMethod"),
+                    anyInt(), anyInt());
+        }
+    }
+
+    @Nested
+    @DisplayName("Global key type tests")
+    class GlobalKeyTests {
+
+        @Test
+        @DisplayName("should build global key regardless of user or IP")
+        void shouldBuildGlobalKey() throws Throwable {
+            setupMocksForGlobalRateLimitedMethod();
+            setupMockRequest("192.168.1.1");
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(
+                    eq("global:RateLimitAspectTest.globalLimitedMethod"),
+                    anyInt(), anyInt());
+        }
+    }
+
+    @Nested
+    @DisplayName("Edge cases and error handling")
+    class EdgeCasesTests {
+
+        @Test
+        @DisplayName("should return unknown IP when no request context")
+        void shouldReturnUnknownIpWhenNoRequestContext() throws Throwable {
+            setupMocksForRateLimitedMethod();
+            RequestContextHolder.resetRequestAttributes();
+            clearAuthentication();
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(eq("ip:unknown"), anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("should use remoteAddr when X-Forwarded-For is empty")
+        void shouldUseRemoteAddrWhenXForwardedForEmpty() throws Throwable {
+            setupMocksForRateLimitedMethod();
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader("X-Forwarded-For", "");
+            request.setRemoteAddr("172.16.0.1");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(eq("ip:172.16.0.1"), anyInt(), anyInt());
+
+            RequestContextHolder.resetRequestAttributes();
+        }
+
+        @Test
+        @DisplayName("should use remoteAddr when X-Real-IP is empty")
+        void shouldUseRemoteAddrWhenXRealIpEmpty() throws Throwable {
+            setupMocksForRateLimitedMethod();
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader("X-Real-IP", "");
+            request.setRemoteAddr("172.16.0.2");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            verify(rateLimitService).checkRateLimit(eq("ip:172.16.0.2"), anyInt(), anyInt());
+
+            RequestContextHolder.resetRequestAttributes();
+        }
+
+        @Test
+        @DisplayName("should not skip rate limit for anonymous user even with skipAuthenticated")
+        void shouldNotSkipForAnonymousUser() throws Throwable {
+            setupMocksForSkipAuthenticatedMethod();
+            setupMockRequest("192.168.1.1");
+            // Set up anonymous user authentication
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                    "anonymousUser", null, Collections.emptyList());
+            SecurityContextHolder.getContext().setAuthentication(auth);
+
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            // Should NOT skip - rate limit should be checked for anonymous user
+            verify(rateLimitService).checkRateLimit(anyString(), anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("should fall back to IP for USER key when user is anonymous")
+        void shouldFallbackToIpForAnonymousUser() throws Throwable {
+            setupMocksForUserRateLimitedMethod();
+            setupMockRequest("192.168.1.1");
+            // Set up anonymous user authentication
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                    "anonymousUser", null, Collections.emptyList());
+            SecurityContextHolder.getContext().setAuthentication(auth);
+
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            // Should fall back to IP since anonymous user is not considered authenticated
+            verify(rateLimitService).checkRateLimit(eq("ip:192.168.1.1"), anyInt(), anyInt());
+        }
+
+        @Test
+        @DisplayName("should handle null authentication")
+        void shouldHandleNullAuthentication() throws Throwable {
+            setupMocksForSkipAuthenticatedMethod();
+            setupMockRequest("192.168.1.1");
+            SecurityContextHolder.getContext().setAuthentication(null);
+
+            when(rateLimitService.checkRateLimit(anyString(), anyInt(), anyInt()))
+                    .thenReturn(RateLimitResult.allowed(5));
+            when(joinPoint.proceed()).thenReturn("result");
+
+            aspect.enforceRateLimit(joinPoint);
+
+            // Should NOT skip - rate limit should be checked when no authentication
+            verify(rateLimitService).checkRateLimit(anyString(), anyInt(), anyInt());
+        }
     }
 
     // Helper methods
@@ -311,6 +508,16 @@ class RateLimitAspectTest {
     private void setupMocksForApiKeyRateLimitedMethod() throws NoSuchMethodException {
         when(joinPoint.getSignature()).thenReturn(methodSignature);
         when(methodSignature.getMethod()).thenReturn(getApiKeyRateLimitedMethod());
+    }
+
+    private void setupMocksForUserEndpointRateLimitedMethod() throws NoSuchMethodException {
+        when(joinPoint.getSignature()).thenReturn(methodSignature);
+        when(methodSignature.getMethod()).thenReturn(getUserEndpointRateLimitedMethod());
+    }
+
+    private void setupMocksForGlobalRateLimitedMethod() throws NoSuchMethodException {
+        when(joinPoint.getSignature()).thenReturn(methodSignature);
+        when(methodSignature.getMethod()).thenReturn(getGlobalRateLimitedMethod());
     }
 
     private void setupMockRequest(String remoteAddr) {
@@ -359,6 +566,14 @@ class RateLimitAspectTest {
         return this.getClass().getDeclaredMethod("apiKeyRateLimitedMethod");
     }
 
+    private Method getUserEndpointRateLimitedMethod() throws NoSuchMethodException {
+        return this.getClass().getDeclaredMethod("userEndpointLimitedMethod");
+    }
+
+    private Method getGlobalRateLimitedMethod() throws NoSuchMethodException {
+        return this.getClass().getDeclaredMethod("globalLimitedMethod");
+    }
+
     // Dummy methods for annotation testing
 
     void unAnnotatedMethod() {}
@@ -380,4 +595,10 @@ class RateLimitAspectTest {
 
     @RateLimit(requests = 50, window = 60, key = RateLimit.KeyType.API_KEY)
     void apiKeyRateLimitedMethod() {}
+
+    @RateLimit(requests = 20, window = 60, key = RateLimit.KeyType.USER_ENDPOINT)
+    void userEndpointLimitedMethod() {}
+
+    @RateLimit(requests = 1000, window = 60, key = RateLimit.KeyType.GLOBAL)
+    void globalLimitedMethod() {}
 }

@@ -95,8 +95,6 @@ class LoginHistoryServiceTest {
                 history.setId(UUID.randomUUID());
                 return history;
             });
-            when(loginHistoryRepository.findDistinctCountriesByUserId(testUserId)).thenReturn(Collections.emptyList());
-            when(loginHistoryRepository.findDistinctDeviceIdsByUserId(testUserId)).thenReturn(Collections.emptyList());
 
             LoginHistoryDto result = loginHistoryService.recordLogin(request);
 

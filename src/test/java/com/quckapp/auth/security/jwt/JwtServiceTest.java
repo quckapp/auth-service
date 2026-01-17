@@ -176,6 +176,22 @@ class JwtServiceTest {
             long difference = expiration.getTime() - issuedAt.getTime();
             assertThat(difference).isCloseTo(3600000L, within(1000L)); // 1 hour
         }
+
+        @Test
+        @DisplayName("should include email claim in password reset token")
+        void shouldIncludeEmailClaimInPasswordResetToken() {
+            String token = jwtService.generatePasswordResetToken(testUser);
+
+            assertThat(jwtService.extractEmail(token)).isEqualTo("test@example.com");
+        }
+
+        @Test
+        @DisplayName("should include user ID in password reset token")
+        void shouldIncludeUserIdInPasswordResetToken() {
+            String token = jwtService.generatePasswordResetToken(testUser);
+
+            assertThat(jwtService.extractUserId(token)).isEqualTo(testUser.getId().toString());
+        }
     }
 
     @Nested
@@ -210,6 +226,22 @@ class JwtServiceTest {
             long difference = expiration.getTime() - issuedAt.getTime();
             assertThat(difference).isCloseTo(86400000L, within(1000L)); // 24 hours
         }
+
+        @Test
+        @DisplayName("should include email claim in email verification token")
+        void shouldIncludeEmailClaimInEmailVerificationToken() {
+            String token = jwtService.generateEmailVerificationToken(testUser);
+
+            assertThat(jwtService.extractEmail(token)).isEqualTo("test@example.com");
+        }
+
+        @Test
+        @DisplayName("should include user ID in email verification token")
+        void shouldIncludeUserIdInEmailVerificationToken() {
+            String token = jwtService.generateEmailVerificationToken(testUser);
+
+            assertThat(jwtService.extractUserId(token)).isEqualTo(testUser.getId().toString());
+        }
     }
 
     @Nested
@@ -243,6 +275,22 @@ class JwtServiceTest {
 
             long difference = expiration.getTime() - issuedAt.getTime();
             assertThat(difference).isCloseTo(300000L, within(1000L)); // 5 minutes
+        }
+
+        @Test
+        @DisplayName("should include email claim in temp token")
+        void shouldIncludeEmailClaimInTempToken() {
+            String token = jwtService.generateTempToken(testUser);
+
+            assertThat(jwtService.extractEmail(token)).isEqualTo("test@example.com");
+        }
+
+        @Test
+        @DisplayName("should include user ID in temp token")
+        void shouldIncludeUserIdInTempToken() {
+            String token = jwtService.generateTempToken(testUser);
+
+            assertThat(jwtService.extractUserId(token)).isEqualTo(testUser.getId().toString());
         }
     }
 
@@ -324,6 +372,39 @@ class JwtServiceTest {
         void shouldRejectNullToken() {
             // validateToken catches exceptions and returns false for invalid tokens
             assertThat(jwtService.validateToken(null)).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return false for isTokenValid when token is malformed")
+        void shouldReturnFalseForIsTokenValidWhenTokenMalformed() {
+            // isTokenValid catches exceptions and returns false
+            assertThat(jwtService.isTokenValid("malformed.token", testUser)).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return false for isTokenValid when token is expired")
+        void shouldReturnFalseForIsTokenValidWhenTokenExpired() {
+            ReflectionTestUtils.setField(jwtService, "accessTokenExpiration", -1000L);
+            String expiredToken = jwtService.generateAccessToken(testUser);
+
+            // isTokenValid catches ExpiredJwtException and returns false
+            assertThat(jwtService.isTokenValid(expiredToken, testUser)).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return false for isTokenValid when token signature is invalid")
+        void shouldReturnFalseForIsTokenValidWhenSignatureInvalid() {
+            String token = jwtService.generateAccessToken(testUser);
+            String[] parts = token.split("\\.");
+            String tamperedToken = parts[0] + "." + parts[1] + ".tampered";
+
+            assertThat(jwtService.isTokenValid(tamperedToken, testUser)).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return false for isTokenValid when token is null")
+        void shouldReturnFalseForIsTokenValidWhenNull() {
+            assertThat(jwtService.isTokenValid(null, testUser)).isFalse();
         }
     }
 

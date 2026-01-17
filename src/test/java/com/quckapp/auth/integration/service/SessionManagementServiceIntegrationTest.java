@@ -191,7 +191,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should get active sessions only")
         @Transactional
-        @Disabled("JSON column validation - session_activities.details expects valid JSON but service passes null")
         void shouldGetActiveSessions() {
             // Given
             testUser = createTestUser("active_sessions_" + System.currentTimeMillis() + "@test.com");
@@ -231,7 +230,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should return false for terminated session")
         @Transactional
-        @Disabled("JSON column validation - session_activities.details expects valid JSON but service passes null")
         void shouldReturnFalseForTerminatedSession() {
             // Given
             testUser = createTestUser("validate_term_" + System.currentTimeMillis() + "@test.com");
@@ -296,7 +294,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should terminate session")
         @Transactional
-        @Disabled("JSON column validation - session_activities.details expects valid JSON but service passes null")
         void shouldTerminateSession() {
             // Given
             testUser = createTestUser("terminate_" + System.currentTimeMillis() + "@test.com");
@@ -313,7 +310,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should log termination activity")
         @Transactional
-        @Disabled("JSON column validation - session_activities.details expects valid JSON but service passes null")
         void shouldLogTerminationActivity() {
             // Given
             testUser = createTestUser("term_activity_" + System.currentTimeMillis() + "@test.com");
@@ -437,7 +433,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should terminate oldest session when max exceeded")
         @Transactional
-        @Disabled("JSON column validation - session_activities.details expects valid JSON but service passes null")
         void shouldTerminateOldestWhenMaxExceeded() {
             // Given
             testUser = createTestUser("max_sessions_" + System.currentTimeMillis() + "@test.com");
@@ -467,7 +462,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should get session statistics")
         @Transactional
-        @Disabled("Schema mismatch: UserSecurityPreferences entity has require2fa_for_sensitive_actions column not in database")
         void shouldGetSessionStatistics() {
             // Given
             testUser = createTestUser("stats_" + System.currentTimeMillis() + "@test.com");
@@ -489,7 +483,6 @@ class SessionManagementServiceIntegrationTest extends BaseServiceIntegrationTest
         @Test
         @DisplayName("Should cleanup expired sessions")
         @Transactional
-        @Disabled("Schema mismatch: UserSecurityPreferences entity has require2fa_for_sensitive_actions column not in database")
         void shouldCleanupExpiredSessions() {
             // Given - Create a session that will expire immediately (0 minutes)
             testUser = createTestUser("cleanup_" + System.currentTimeMillis() + "@test.com");

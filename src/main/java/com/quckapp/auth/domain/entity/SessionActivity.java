@@ -43,7 +43,7 @@ public class SessionActivity {
     @Column(columnDefinition = "TEXT")
     private String userAgent;
 
-    @Column(columnDefinition = "JSON")
+    @Column(columnDefinition = "TEXT")
     private String details;
 
     @CreatedDate

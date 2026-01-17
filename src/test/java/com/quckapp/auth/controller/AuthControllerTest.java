@@ -265,11 +265,12 @@ class AuthControllerTest {
                     .build();
 
             mockMvc.perform(post("/v1/token/revoke")
+                            .header("Authorization", "Bearer valid-token")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
 
-            verify(authService).revokeToken(any(RevokeTokenRequest.class), any(ClientInfo.class));
+            verify(authService).revokeToken(eq("valid-token"), any(RevokeTokenRequest.class), any(ClientInfo.class));
         }
 
         @Test

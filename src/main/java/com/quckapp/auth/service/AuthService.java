@@ -19,7 +19,7 @@ public interface AuthService {
 
     TokenValidationResponse validateToken(TokenValidationRequest request);
 
-    void revokeToken(RevokeTokenRequest request, ClientInfo clientInfo);
+    void revokeToken(String token, RevokeTokenRequest request, ClientInfo clientInfo);
 
     void revokeAllTokens(String token, ClientInfo clientInfo);
 

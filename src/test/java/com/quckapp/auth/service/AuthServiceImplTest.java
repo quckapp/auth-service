@@ -610,6 +610,7 @@ class AuthServiceImplTest {
         @Test
         @DisplayName("should revoke single token")
         void shouldRevokeSingleToken() {
+            String accessToken = "caller-access-token";
             String token = "token-to-revoke";
             Date expiration = Date.from(Instant.now().plus(1, ChronoUnit.HOURS));
 
@@ -617,10 +618,11 @@ class AuthServiceImplTest {
                     .token(token)
                     .build();
 
+            when(jwtService.extractUserId(accessToken)).thenReturn(testUser.getId().toString());
             when(jwtService.extractExpiration(token)).thenReturn(expiration);
             when(jwtService.extractTokenType(token)).thenReturn("access");
 
-            authService.revokeToken(request, testClientInfo);
+            authService.revokeToken(accessToken, request, testClientInfo);
 
             verify(tokenBlacklistService).blacklistToken(eq(token), eq(expiration), anyString());
         }

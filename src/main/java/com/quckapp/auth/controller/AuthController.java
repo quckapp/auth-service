@@ -120,11 +120,13 @@ public class AuthController {
 
     @PostMapping("/token/revoke")
     @Operation(summary = "Revoke a specific token")
+    @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 10, window = 60, key = KeyType.USER)
     public ResponseEntity<Void> revokeToken(
+            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
             @Valid @RequestBody RevokeTokenRequest request,
             HttpServletRequest httpRequest) {
-        authService.revokeToken(request, getClientInfo(httpRequest));
+        authService.revokeToken(extractToken(authHeader), request, getClientInfo(httpRequest));
         return ResponseEntity.ok().build();
     }
 

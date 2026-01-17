@@ -280,8 +280,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void revokeToken(RevokeTokenRequest request, ClientInfo clientInfo) {
+    public void revokeToken(String accessToken, RevokeTokenRequest request, ClientInfo clientInfo) {
         log.info("Revoking token");
+
+        // Verify the caller is authenticated (accessToken is validated by Spring Security)
+        String callerId = jwtService.extractUserId(accessToken);
+        log.debug("Token revocation requested by user: {}", callerId);
 
         String token = request.getToken();
 

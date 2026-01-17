@@ -221,6 +221,62 @@ class RateLimitServiceTest {
             // Initially not blocked
             assertThat(rateLimitService.isLoginBlocked(email)).isFalse();
         }
+
+        @Test
+        @DisplayName("should return blocked result when checking login rate limit for blocked user")
+        void shouldReturnBlockedResultWhenBlocked() {
+            String email = "alreadyblocked@test.com";
+            String ip = "10.0.0.4";
+
+            // Block the user first
+            rateLimitService.blockLogin(email);
+
+            // Check login rate limit - should return blocked result
+            RateLimitResult result = rateLimitService.checkLoginRateLimit(email, ip);
+
+            assertThat(result.isBlocked()).isTrue();
+            assertThat(result.isAllowed()).isFalse();
+            assertThat(result.getRetryAfterSeconds()).isGreaterThan(0);
+        }
+
+        @Test
+        @DisplayName("should get remaining block time")
+        void shouldGetBlockTimeRemaining() {
+            String email = "blocktime@test.com";
+            String ip = "10.0.0.5";
+
+            // Block the user
+            rateLimitService.blockLogin(email);
+
+            // Get remaining time
+            long remaining = rateLimitService.getBlockTimeRemaining(email);
+
+            // Should be close to configured block duration (900 seconds)
+            assertThat(remaining).isGreaterThan(0);
+            assertThat(remaining).isLessThanOrEqualTo(900);
+        }
+
+        @Test
+        @DisplayName("should return 0 for block time when not blocked")
+        void shouldReturnZeroWhenNotBlocked() {
+            String email = "notblocked@test.com";
+
+            long remaining = rateLimitService.getBlockTimeRemaining(email);
+
+            assertThat(remaining).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("should directly block login")
+        void shouldDirectlyBlockLogin() {
+            String email = "directblock@test.com";
+
+            assertThat(rateLimitService.isLoginBlocked(email)).isFalse();
+
+            rateLimitService.blockLogin(email);
+
+            assertThat(rateLimitService.isLoginBlocked(email)).isTrue();
+        }
     }
 
     @Nested

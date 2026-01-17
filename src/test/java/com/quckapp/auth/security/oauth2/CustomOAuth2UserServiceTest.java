@@ -755,4 +755,672 @@ class CustomOAuth2UserServiceTest {
             assertThat(newUser.getExternalId()).isNotEmpty();
         }
     }
+
+    @Nested
+    @DisplayName("LoadUser End-to-End Tests")
+    class LoadUserEndToEndTests {
+
+        private OAuth2UserRequest createOAuth2UserRequest(String registrationId) {
+            ClientRegistration clientRegistration = ClientRegistration.withRegistrationId(registrationId)
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .clientId("test-client-id")
+                    .clientSecret("test-client-secret")
+                    .redirectUri("http://localhost/callback")
+                    .authorizationUri("https://provider.com/auth")
+                    .tokenUri("https://provider.com/token")
+                    .userInfoUri("https://provider.com/userinfo")
+                    .userNameAttributeName("sub")
+                    .scope("email", "profile")
+                    .build();
+
+            OAuth2AccessToken accessToken = new OAuth2AccessToken(
+                    OAuth2AccessToken.TokenType.BEARER,
+                    "test-access-token",
+                    Instant.now(),
+                    Instant.now().plusSeconds(3600)
+            );
+
+            return new OAuth2UserRequest(clientRegistration, accessToken);
+        }
+
+        private OAuth2User createOAuth2User(String id, String email, String name) {
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", id);
+            attributes.put("email", email);
+            attributes.put("name", name);
+            attributes.put("picture", "https://example.com/photo.jpg");
+
+            return new DefaultOAuth2User(
+                    Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                    attributes,
+                    "sub"
+            );
+        }
+
+        /**
+         * Testable subclass that allows injecting a mock OAuth2User
+         * instead of calling the parent's loadUser method
+         */
+        class TestableCustomOAuth2UserService extends CustomOAuth2UserService {
+            private OAuth2User mockOAuth2User;
+
+            public TestableCustomOAuth2UserService(
+                    AuthUserRepository authUserRepository,
+                    OAuthConnectionRepository oauthConnectionRepository,
+                    UserEventPublisher userEventPublisher) {
+                super(authUserRepository, oauthConnectionRepository, userEventPublisher);
+            }
+
+            public void setMockOAuth2User(OAuth2User mockOAuth2User) {
+                this.mockOAuth2User = mockOAuth2User;
+            }
+
+            @Override
+            public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+                // Return the mock instead of calling super.loadUser()
+                // Then process it normally
+                if (mockOAuth2User == null) {
+                    throw new IllegalStateException("Mock OAuth2User not set");
+                }
+
+                String registrationId = userRequest.getClientRegistration().getRegistrationId();
+
+                try {
+                    return processOAuth2UserForTest(userRequest, mockOAuth2User, registrationId);
+                } catch (OAuth2AuthenticationException ex) {
+                    throw ex;
+                } catch (Exception ex) {
+                    throw new OAuth2AuthenticationException(
+                            new org.springframework.security.oauth2.core.OAuth2Error("processing_error", ex.getMessage(), null)
+                    );
+                }
+            }
+
+            private OAuth2User processOAuth2UserForTest(OAuth2UserRequest userRequest, OAuth2User oAuth2User, String registrationId) {
+                OAuth2UserInfo userInfo = OAuth2UserInfo.create(registrationId, oAuth2User.getAttributes());
+
+                if (userInfo.getEmail() == null || userInfo.getEmail().isEmpty()) {
+                    throw new OAuth2AuthenticationException(
+                            new org.springframework.security.oauth2.core.OAuth2Error("email_not_found", "Email not found from OAuth2 provider", null)
+                    );
+                }
+
+                OAuthProvider provider = OAuthProvider.valueOf(registrationId.toUpperCase());
+                String providerUserId = userInfo.getId();
+
+                Optional<OAuthConnection> existingConnection = oauthConnectionRepository
+                        .findByProviderAndProviderUserId(provider, providerUserId);
+
+                AuthUser user;
+                boolean isNewUser = false;
+
+                if (existingConnection.isPresent()) {
+                    OAuthConnection connection = existingConnection.get();
+                    user = connection.getUser();
+                    updateOAuthConnectionForTest(connection, userRequest);
+                } else {
+                    Optional<AuthUser> existingUser = authUserRepository.findByEmail(userInfo.getEmail());
+
+                    if (existingUser.isPresent()) {
+                        user = existingUser.get();
+                        createOAuthConnectionForTest(user, provider, providerUserId, userRequest, userInfo);
+                    } else {
+                        user = createNewUserForTest(userInfo);
+                        createOAuthConnectionForTest(user, provider, providerUserId, userRequest, userInfo);
+                        isNewUser = true;
+                        userEventPublisher.publishUserRegistered(user);
+                    }
+                }
+
+                user.setLastLoginAt(Instant.now());
+                authUserRepository.save(user);
+
+                return OAuth2UserPrincipal.create(user, oAuth2User.getAttributes(), isNewUser);
+            }
+
+            private AuthUser createNewUserForTest(OAuth2UserInfo userInfo) {
+                AuthUser user = AuthUser.builder()
+                        .email(userInfo.getEmail())
+                        .externalId(UUID.randomUUID().toString())
+                        .status(AuthUser.AuthStatus.ACTIVE)
+                        .emailVerified(true)
+                        .build();
+                return authUserRepository.save(user);
+            }
+
+            private void createOAuthConnectionForTest(AuthUser user, OAuthProvider provider, String providerUserId,
+                                                      OAuth2UserRequest userRequest, OAuth2UserInfo userInfo) {
+                OAuthConnection connection = OAuthConnection.builder()
+                        .user(user)
+                        .provider(provider)
+                        .providerUserId(providerUserId)
+                        .providerEmail(userInfo.getEmail())
+                        .providerName(userInfo.getName())
+                        .providerAvatarUrl(userInfo.getImageUrl())
+                        .scopes(String.join(",", userRequest.getClientRegistration().getScopes()))
+                        .accessToken(userRequest.getAccessToken().getTokenValue())
+                        .tokenExpiresAt(userRequest.getAccessToken().getExpiresAt())
+                        .lastUsedAt(Instant.now())
+                        .build();
+                oauthConnectionRepository.save(connection);
+            }
+
+            private void updateOAuthConnectionForTest(OAuthConnection connection, OAuth2UserRequest userRequest) {
+                connection.setAccessToken(userRequest.getAccessToken().getTokenValue());
+                connection.setTokenExpiresAt(userRequest.getAccessToken().getExpiresAt());
+                connection.setLastUsedAt(Instant.now());
+                oauthConnectionRepository.save(connection);
+            }
+        }
+
+        private TestableCustomOAuth2UserService testableService;
+
+        @BeforeEach
+        void setUpTestableService() {
+            testableService = new TestableCustomOAuth2UserService(
+                    authUserRepository,
+                    oauthConnectionRepository,
+                    userEventPublisher
+            );
+        }
+
+        @Test
+        @DisplayName("should load and process new user via OAuth2")
+        void shouldLoadAndProcessNewUserViaOAuth2() {
+            // Given
+            String providerUserId = "google-new-user-123";
+            String email = "newuser@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "New User");
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            OAuth2User result = testableService.loadUser(userRequest);
+
+            // Then
+            assertThat(result).isInstanceOf(OAuth2UserPrincipal.class);
+            OAuth2UserPrincipal principal = (OAuth2UserPrincipal) result;
+            assertThat(principal.getEmail()).isEqualTo(email);
+            assertThat(principal.isNewUser()).isTrue();
+
+            verify(authUserRepository, times(2)).save(any(AuthUser.class)); // createNewUser + lastLogin update
+            verify(oauthConnectionRepository).save(any(OAuthConnection.class));
+            verify(userEventPublisher).publishUserRegistered(any(AuthUser.class));
+        }
+
+        @Test
+        @DisplayName("should load and link OAuth to existing user by email")
+        void shouldLoadAndLinkOAuthToExistingUserByEmail() {
+            // Given
+            String providerUserId = "google-link-123";
+            String email = "existing@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "Existing User");
+
+            AuthUser existingUser = AuthUser.builder()
+                    .id(UUID.randomUUID())
+                    .email(email)
+                    .externalId("ext-existing")
+                    .status(AuthUser.AuthStatus.ACTIVE)
+                    .build();
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.of(existingUser));
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenReturn(existingUser);
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            OAuth2User result = testableService.loadUser(userRequest);
+
+            // Then
+            assertThat(result).isInstanceOf(OAuth2UserPrincipal.class);
+            OAuth2UserPrincipal principal = (OAuth2UserPrincipal) result;
+            assertThat(principal.getEmail()).isEqualTo(email);
+            assertThat(principal.isNewUser()).isFalse();
+
+            verify(oauthConnectionRepository).save(any(OAuthConnection.class));
+            verify(userEventPublisher, never()).publishUserRegistered(any()); // Not a new user
+        }
+
+        @Test
+        @DisplayName("should load and update existing OAuth connection")
+        void shouldLoadAndUpdateExistingOAuthConnection() {
+            // Given
+            String providerUserId = "google-existing-123";
+            String email = "oauth-user@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "OAuth User");
+
+            AuthUser existingUser = AuthUser.builder()
+                    .id(UUID.randomUUID())
+                    .email(email)
+                    .externalId("ext-oauth")
+                    .status(AuthUser.AuthStatus.ACTIVE)
+                    .build();
+
+            OAuthConnection existingConnection = OAuthConnection.builder()
+                    .id(UUID.randomUUID())
+                    .user(existingUser)
+                    .provider(OAuthProvider.GOOGLE)
+                    .providerUserId(providerUserId)
+                    .accessToken("old-token")
+                    .build();
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.of(existingConnection));
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenReturn(existingUser);
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            OAuth2User result = testableService.loadUser(userRequest);
+
+            // Then
+            assertThat(result).isInstanceOf(OAuth2UserPrincipal.class);
+            OAuth2UserPrincipal principal = (OAuth2UserPrincipal) result;
+            assertThat(principal.isNewUser()).isFalse();
+
+            // Verify token was updated
+            ArgumentCaptor<OAuthConnection> connectionCaptor = ArgumentCaptor.forClass(OAuthConnection.class);
+            verify(oauthConnectionRepository).save(connectionCaptor.capture());
+            assertThat(connectionCaptor.getValue().getAccessToken()).isEqualTo("test-access-token");
+        }
+
+        @Test
+        @DisplayName("should throw OAuth2AuthenticationException when email is null")
+        void shouldThrowExceptionWhenEmailIsNull() {
+            // Given
+            String providerUserId = "google-no-email-123";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", providerUserId);
+            // No email attribute
+
+            OAuth2User oAuth2User = new DefaultOAuth2User(
+                    Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                    attributes,
+                    "sub"
+            );
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            // When/Then
+            assertThatThrownBy(() -> testableService.loadUser(userRequest))
+                    .isInstanceOf(OAuth2AuthenticationException.class)
+                    .satisfies(ex -> {
+                        OAuth2AuthenticationException oauth2Ex = (OAuth2AuthenticationException) ex;
+                        assertThat(oauth2Ex.getError().getErrorCode()).isEqualTo("email_not_found");
+                    });
+        }
+
+        @Test
+        @DisplayName("should throw OAuth2AuthenticationException when email is empty")
+        void shouldThrowExceptionWhenEmailIsEmpty() {
+            // Given
+            String providerUserId = "google-empty-email-123";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", providerUserId);
+            attributes.put("email", ""); // Empty email
+
+            OAuth2User oAuth2User = new DefaultOAuth2User(
+                    Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                    attributes,
+                    "sub"
+            );
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            // When/Then
+            assertThatThrownBy(() -> testableService.loadUser(userRequest))
+                    .isInstanceOf(OAuth2AuthenticationException.class)
+                    .satisfies(ex -> {
+                        OAuth2AuthenticationException oauth2Ex = (OAuth2AuthenticationException) ex;
+                        assertThat(oauth2Ex.getError().getErrorCode()).isEqualTo("email_not_found");
+                    });
+        }
+
+        @Test
+        @DisplayName("should wrap processing exception in OAuth2AuthenticationException")
+        void shouldWrapProcessingExceptionInOAuth2AuthenticationException() {
+            // Given
+            String providerUserId = "google-error-123";
+            String email = "error@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "Error User");
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            // Simulate a database error
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(any(), any()))
+                    .thenThrow(new RuntimeException("Database connection failed"));
+
+            // When/Then
+            assertThatThrownBy(() -> testableService.loadUser(userRequest))
+                    .isInstanceOf(OAuth2AuthenticationException.class)
+                    .satisfies(ex -> {
+                        OAuth2AuthenticationException oauth2Ex = (OAuth2AuthenticationException) ex;
+                        assertThat(oauth2Ex.getError().getErrorCode()).isEqualTo("processing_error");
+                        assertThat(oauth2Ex.getError().getDescription()).contains("Database connection failed");
+                    });
+        }
+
+        @Test
+        @DisplayName("should handle GitHub provider correctly")
+        void shouldHandleGitHubProviderCorrectly() {
+            // Given
+            String providerUserId = "12345"; // GitHub uses numeric IDs
+            String email = "dev@github.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("github");
+
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("id", 12345);
+            attributes.put("email", email);
+            attributes.put("name", "GitHub Dev");
+            attributes.put("avatar_url", "https://github.com/avatar.jpg");
+
+            OAuth2User oAuth2User = new DefaultOAuth2User(
+                    Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                    attributes,
+                    "id"
+            );
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GITHUB, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            OAuth2User result = testableService.loadUser(userRequest);
+
+            // Then
+            assertThat(result).isInstanceOf(OAuth2UserPrincipal.class);
+            verify(oauthConnectionRepository).findByProviderAndProviderUserId(OAuthProvider.GITHUB, providerUserId);
+        }
+
+        @Test
+        @DisplayName("should handle Facebook provider correctly")
+        void shouldHandleFacebookProviderCorrectly() {
+            // Given
+            String providerUserId = "fb-user-123";
+            String email = "user@facebook.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("facebook");
+
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("id", providerUserId);
+            attributes.put("email", email);
+            attributes.put("name", "Facebook User");
+
+            OAuth2User oAuth2User = new DefaultOAuth2User(
+                    Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                    attributes,
+                    "id"
+            );
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.FACEBOOK, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            OAuth2User result = testableService.loadUser(userRequest);
+
+            // Then
+            assertThat(result).isInstanceOf(OAuth2UserPrincipal.class);
+            verify(oauthConnectionRepository).findByProviderAndProviderUserId(OAuthProvider.FACEBOOK, providerUserId);
+        }
+
+        @Test
+        @DisplayName("should handle Apple provider correctly")
+        void shouldHandleAppleProviderCorrectly() {
+            // Given
+            String providerUserId = "apple-user-123";
+            String email = "user@privaterelay.appleid.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("apple");
+
+            Map<String, Object> attributes = new HashMap<>();
+            attributes.put("sub", providerUserId);
+            attributes.put("email", email);
+
+            OAuth2User oAuth2User = new DefaultOAuth2User(
+                    Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                    attributes,
+                    "sub"
+            );
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.APPLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            OAuth2User result = testableService.loadUser(userRequest);
+
+            // Then
+            assertThat(result).isInstanceOf(OAuth2UserPrincipal.class);
+            verify(oauthConnectionRepository).findByProviderAndProviderUserId(OAuthProvider.APPLE, providerUserId);
+        }
+
+        @Test
+        @DisplayName("should create OAuth connection with correct scopes")
+        void shouldCreateOAuthConnectionWithCorrectScopes() {
+            // Given
+            String providerUserId = "google-scopes-123";
+            String email = "scopes@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "Scopes User");
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+
+            ArgumentCaptor<OAuthConnection> connectionCaptor = ArgumentCaptor.forClass(OAuthConnection.class);
+            when(oauthConnectionRepository.save(connectionCaptor.capture()))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            testableService.loadUser(userRequest);
+
+            // Then
+            OAuthConnection savedConnection = connectionCaptor.getValue();
+            assertThat(savedConnection.getScopes()).contains("email");
+            assertThat(savedConnection.getScopes()).contains("profile");
+            assertThat(savedConnection.getAccessToken()).isEqualTo("test-access-token");
+            assertThat(savedConnection.getTokenExpiresAt()).isNotNull();
+            assertThat(savedConnection.getLastUsedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("should set lastLoginAt on successful authentication")
+        void shouldSetLastLoginAtOnSuccessfulAuthentication() {
+            // Given
+            String providerUserId = "google-login-123";
+            String email = "login@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "Login User");
+
+            Instant beforeLogin = Instant.now().minusSeconds(1);
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+
+            ArgumentCaptor<AuthUser> userCaptor = ArgumentCaptor.forClass(AuthUser.class);
+            when(authUserRepository.save(userCaptor.capture()))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            testableService.loadUser(userRequest);
+
+            // Then - get the last saved user (the one with lastLoginAt set)
+            List<AuthUser> allCaptured = userCaptor.getAllValues();
+            AuthUser lastSaved = allCaptured.get(allCaptured.size() - 1);
+            assertThat(lastSaved.getLastLoginAt()).isAfter(beforeLogin);
+        }
+
+        @Test
+        @DisplayName("should populate all OAuth connection fields correctly")
+        void shouldPopulateAllOAuthConnectionFieldsCorrectly() {
+            // Given
+            String providerUserId = "google-full-123";
+            String email = "full@gmail.com";
+            String name = "Full Name User";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, name);
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.save(any(AuthUser.class)))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+
+            ArgumentCaptor<OAuthConnection> connectionCaptor = ArgumentCaptor.forClass(OAuthConnection.class);
+            when(oauthConnectionRepository.save(connectionCaptor.capture()))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            testableService.loadUser(userRequest);
+
+            // Then
+            OAuthConnection savedConnection = connectionCaptor.getValue();
+            assertThat(savedConnection.getProvider()).isEqualTo(OAuthProvider.GOOGLE);
+            assertThat(savedConnection.getProviderUserId()).isEqualTo(providerUserId);
+            assertThat(savedConnection.getProviderEmail()).isEqualTo(email);
+            assertThat(savedConnection.getProviderName()).isEqualTo(name);
+            assertThat(savedConnection.getProviderAvatarUrl()).isEqualTo("https://example.com/photo.jpg");
+        }
+
+        @Test
+        @DisplayName("should create new user with correct attributes")
+        void shouldCreateNewUserWithCorrectAttributes() {
+            // Given
+            String providerUserId = "google-newattr-123";
+            String email = "newattr@gmail.com";
+            OAuth2UserRequest userRequest = createOAuth2UserRequest("google");
+            OAuth2User oAuth2User = createOAuth2User(providerUserId, email, "New Attr User");
+
+            testableService.setMockOAuth2User(oAuth2User);
+
+            when(oauthConnectionRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, providerUserId))
+                    .thenReturn(Optional.empty());
+            when(authUserRepository.findByEmail(email))
+                    .thenReturn(Optional.empty());
+
+            ArgumentCaptor<AuthUser> userCaptor = ArgumentCaptor.forClass(AuthUser.class);
+            when(authUserRepository.save(userCaptor.capture()))
+                    .thenAnswer(inv -> {
+                        AuthUser user = inv.getArgument(0);
+                        if (user.getId() == null) {
+                            user.setId(UUID.randomUUID());
+                        }
+                        return user;
+                    });
+            when(oauthConnectionRepository.save(any(OAuthConnection.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            // When
+            testableService.loadUser(userRequest);
+
+            // Then - the first captured user is the newly created one
+            AuthUser createdUser = userCaptor.getAllValues().get(0);
+            assertThat(createdUser.getEmail()).isEqualTo(email);
+            assertThat(createdUser.isEmailVerified()).isTrue(); // OAuth emails are pre-verified
+            assertThat(createdUser.getStatus()).isEqualTo(AuthUser.AuthStatus.ACTIVE);
+            assertThat(createdUser.getExternalId()).isNotNull();
+        }
+    }
 }

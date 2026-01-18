@@ -102,7 +102,7 @@ public class AuthController {
     // ============================================
 
     @PostMapping("/token/refresh")
-    @Operation(summary = "Refresh access token")
+    @Operation(summary = "Refresh access token", tags = {"Token Management"})
     @RateLimit(requests = 30, window = 60, key = KeyType.IP)
     public ResponseEntity<TokenResponse> refreshToken(
             @Valid @RequestBody RefreshTokenRequest request,
@@ -111,7 +111,7 @@ public class AuthController {
     }
 
     @PostMapping("/token/validate")
-    @Operation(summary = "Validate JWT token")
+    @Operation(summary = "Validate JWT token", tags = {"Token Management"})
     @RateLimit(requests = 100, window = 60, key = KeyType.IP)
     public ResponseEntity<TokenValidationResponse> validateToken(
             @Valid @RequestBody TokenValidationRequest request) {
@@ -119,7 +119,7 @@ public class AuthController {
     }
 
     @PostMapping("/token/revoke")
-    @Operation(summary = "Revoke a specific token")
+    @Operation(summary = "Revoke a specific token", tags = {"Token Management"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 10, window = 60, key = KeyType.USER)
     public ResponseEntity<Void> revokeToken(
@@ -131,7 +131,7 @@ public class AuthController {
     }
 
     @PostMapping("/token/revoke-all")
-    @Operation(summary = "Revoke all tokens for current user")
+    @Operation(summary = "Revoke all tokens for current user", tags = {"Token Management"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 5, window = 300, key = KeyType.USER)
     public ResponseEntity<Void> revokeAllTokens(
@@ -182,7 +182,7 @@ public class AuthController {
     // ============================================
 
     @PostMapping("/2fa/setup")
-    @Operation(summary = "Setup 2FA - get QR code")
+    @Operation(summary = "Setup 2FA - get QR code", tags = {"Two-Factor Authentication"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 10, window = 3600, key = KeyType.USER)
     public ResponseEntity<TwoFactorSetupResponse> setup2FA(
@@ -191,7 +191,7 @@ public class AuthController {
     }
 
     @PostMapping("/2fa/enable")
-    @Operation(summary = "Enable 2FA after verification")
+    @Operation(summary = "Enable 2FA after verification", tags = {"Two-Factor Authentication"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 5, window = 300, key = KeyType.USER)
     public ResponseEntity<TwoFactorEnableResponse> enable2FA(
@@ -203,7 +203,7 @@ public class AuthController {
     }
 
     @PostMapping("/2fa/disable")
-    @Operation(summary = "Disable 2FA")
+    @Operation(summary = "Disable 2FA", tags = {"Two-Factor Authentication"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 3, window = 3600, key = KeyType.USER)
     public ResponseEntity<MessageResponse> disable2FA(
@@ -215,7 +215,7 @@ public class AuthController {
     }
 
     @PostMapping("/2fa/backup-codes")
-    @Operation(summary = "Generate new backup codes")
+    @Operation(summary = "Generate new backup codes", tags = {"Two-Factor Authentication"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 3, window = 3600, key = KeyType.USER)
     public ResponseEntity<BackupCodesResponse> generateBackupCodes(
@@ -270,7 +270,7 @@ public class AuthController {
     // ============================================
 
     @GetMapping("/sessions")
-    @Operation(summary = "Get active sessions")
+    @Operation(summary = "Get active sessions", tags = {"Sessions"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 30, window = 60, key = KeyType.USER)
     public ResponseEntity<SessionsResponse> getSessions(
@@ -279,7 +279,7 @@ public class AuthController {
     }
 
     @DeleteMapping("/sessions/{sessionId}")
-    @Operation(summary = "Terminate specific session")
+    @Operation(summary = "Terminate specific session", tags = {"Sessions"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 10, window = 60, key = KeyType.USER)
     public ResponseEntity<Void> terminateSession(
@@ -291,7 +291,7 @@ public class AuthController {
     }
 
     @DeleteMapping("/sessions")
-    @Operation(summary = "Terminate all other sessions")
+    @Operation(summary = "Terminate all other sessions", tags = {"Sessions"})
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(requests = 5, window = 300, key = KeyType.USER)
     public ResponseEntity<Void> terminateAllSessions(

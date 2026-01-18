@@ -143,7 +143,7 @@ public class UserProfileController {
     // ==================== Blocked Users Endpoints ====================
 
     @PostMapping("/me/blocked-users")
-    @Operation(summary = "Block a user")
+    @Operation(summary = "Block a user", tags = {"Blocked Users"})
     public ResponseEntity<Void> blockUser(
             @RequestHeader("X-User-ID") UUID userId,
             @Valid @RequestBody BlockUserRequest request) {
@@ -152,7 +152,7 @@ public class UserProfileController {
     }
 
     @DeleteMapping("/me/blocked-users/{blockedUserId}")
-    @Operation(summary = "Unblock a user")
+    @Operation(summary = "Unblock a user", tags = {"Blocked Users"})
     public ResponseEntity<Void> unblockUser(
             @RequestHeader("X-User-ID") UUID userId,
             @PathVariable UUID blockedUserId) {
@@ -161,7 +161,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/me/blocked-users")
-    @Operation(summary = "Get list of blocked users")
+    @Operation(summary = "Get list of blocked users", tags = {"Blocked Users"})
     public ResponseEntity<List<UserProfileSummaryDto>> getBlockedUsers(
             @RequestHeader("X-User-ID") UUID userId) {
         return ResponseEntity.ok(settingsService.getBlockedUsers(userId));
@@ -170,7 +170,7 @@ public class UserProfileController {
     // ==================== Linked Devices Endpoints ====================
 
     @PostMapping("/me/devices")
-    @Operation(summary = "Link a device")
+    @Operation(summary = "Link a device", tags = {"Devices"})
     public ResponseEntity<LinkedDeviceDto> linkDevice(
             @RequestHeader("X-User-ID") UUID userId,
             @Valid @RequestBody LinkDeviceRequest request) {
@@ -178,14 +178,14 @@ public class UserProfileController {
     }
 
     @GetMapping("/me/devices")
-    @Operation(summary = "Get linked devices")
+    @Operation(summary = "Get linked devices", tags = {"Devices"})
     public ResponseEntity<List<LinkedDeviceDto>> getLinkedDevices(
             @RequestHeader("X-User-ID") UUID userId) {
         return ResponseEntity.ok(deviceService.getLinkedDevices(userId));
     }
 
     @DeleteMapping("/me/devices/{deviceId}")
-    @Operation(summary = "Unlink a device")
+    @Operation(summary = "Unlink a device", tags = {"Devices"})
     public ResponseEntity<Void> unlinkDevice(
             @RequestHeader("X-User-ID") UUID userId,
             @PathVariable String deviceId) {
@@ -194,7 +194,7 @@ public class UserProfileController {
     }
 
     @PutMapping("/me/devices/{deviceId}/activity")
-    @Operation(summary = "Update device activity timestamp")
+    @Operation(summary = "Update device activity timestamp", tags = {"Devices"})
     public ResponseEntity<Void> updateDeviceActivity(
             @RequestHeader("X-User-ID") UUID userId,
             @PathVariable String deviceId) {
@@ -203,7 +203,7 @@ public class UserProfileController {
     }
 
     @PutMapping("/me/devices/{deviceId}/fcm-token")
-    @Operation(summary = "Update device FCM token")
+    @Operation(summary = "Update device FCM token", tags = {"Devices"})
     public ResponseEntity<Void> updateFcmToken(
             @RequestHeader("X-User-ID") UUID userId,
             @PathVariable String deviceId,
@@ -215,7 +215,7 @@ public class UserProfileController {
     // ==================== Internal Endpoints (Service-to-Service) ====================
 
     @GetMapping("/internal/fcm-tokens/{userId}")
-    @Operation(summary = "Get FCM tokens for a user (internal use)")
+    @Operation(summary = "Get FCM tokens for a user (internal use)", tags = {"Internal"})
     public ResponseEntity<FcmTokensResponse> getFcmTokens(
             @PathVariable UUID userId,
             @RequestHeader("X-API-Key") String apiKey) {
@@ -228,7 +228,7 @@ public class UserProfileController {
     }
 
     @PostMapping("/internal/fcm-tokens/batch")
-    @Operation(summary = "Get FCM tokens for multiple users (internal use)")
+    @Operation(summary = "Get FCM tokens for multiple users (internal use)", tags = {"Internal"})
     public ResponseEntity<Map<UUID, List<String>>> getFcmTokensBatch(
             @RequestBody BatchFcmTokensRequest request,
             @RequestHeader("X-API-Key") String apiKey) {
@@ -237,7 +237,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/internal/check-blocked")
-    @Operation(summary = "Check if users are blocked (internal use)")
+    @Operation(summary = "Check if users are blocked (internal use)", tags = {"Internal"})
     public ResponseEntity<Boolean> checkBlocked(
             @RequestParam UUID userId1,
             @RequestParam UUID userId2,
@@ -248,7 +248,7 @@ public class UserProfileController {
     // ==================== Admin Endpoints ====================
 
     @PostMapping("/admin/ban")
-    @Operation(summary = "Ban a user (admin only)")
+    @Operation(summary = "Ban a user (admin only)", tags = {"Admin"})
     public ResponseEntity<Void> banUser(
             @RequestHeader("X-User-ID") UUID adminUserId,
             @Valid @RequestBody BanUserRequest request) {
@@ -258,7 +258,7 @@ public class UserProfileController {
     }
 
     @PostMapping("/admin/unban/{userId}")
-    @Operation(summary = "Unban a user (admin only)")
+    @Operation(summary = "Unban a user (admin only)", tags = {"Admin"})
     public ResponseEntity<Void> unbanUser(
             @PathVariable UUID userId) {
         profileService.unbanUser(userId);
@@ -266,7 +266,7 @@ public class UserProfileController {
     }
 
     @PostMapping("/admin/role")
-    @Operation(summary = "Update user role (admin only)")
+    @Operation(summary = "Update user role (admin only)", tags = {"Admin"})
     public ResponseEntity<Void> updateRole(
             @Valid @RequestBody UpdateRoleRequest request) {
         profileService.updateRole(request.getUserId(), request.getRole());
@@ -274,7 +274,7 @@ public class UserProfileController {
     }
 
     @PostMapping("/admin/permissions")
-    @Operation(summary = "Update user permissions (admin only)")
+    @Operation(summary = "Update user permissions (admin only)", tags = {"Admin"})
     public ResponseEntity<Void> updatePermissions(
             @Valid @RequestBody UpdatePermissionsRequest request) {
         profileService.updatePermissions(request.getUserId(), request.getPermissions());
@@ -282,7 +282,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/admin/statistics")
-    @Operation(summary = "Get user statistics (admin only)")
+    @Operation(summary = "Get user statistics (admin only)", tags = {"Admin"})
     public ResponseEntity<UserStatisticsDto> getStatistics() {
         return ResponseEntity.ok(profileService.getStatistics());
     }

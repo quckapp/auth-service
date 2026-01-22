@@ -1,11 +1,12 @@
 package com.quckapp.auth.config;
 
+import com.quckapp.auth.security.apikey.ApiKeyAuthenticationFilter;
 import com.quckapp.auth.security.jwt.JwtAuthenticationFilter;
-import com.quckapp.auth.security.oauth2.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,67 +23,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final CustomOAuth2UserService customOAuth2UserService;
-    private final CustomOidcUserService customOidcUserService;
-    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
-    private final HttpCookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    // Public endpoints that don't require authentication
-    private static final String[] PUBLIC_ENDPOINTS = {
-            // Phone OTP Authentication
-            "/v1/auth/phone/**",
-            // Standard Auth (Controller at /v1)
-            "/v1/login",
-            "/v1/login/2fa",
-            "/v1/register",
-            "/v1/token/refresh",
-            "/v1/token/validate",
-            "/v1/password/forgot",
-            "/v1/password/reset",
-            "/v1/oauth/**",
-            // OAuth2 browser flow endpoints
-            "/oauth2/**",
-            "/login/oauth2/**",
-            // Health & Actuator
-            "/actuator/**",
-            "/health",
-            // API Docs
-            "/v3/api-docs/**",
-            "/swagger-ui/**",
-            "/swagger-ui.html"
-    };
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     /**
-     * Security filter chain for OAuth2 browser-based login flow (higher priority).
-     * This chain handles OAuth2 authorization and callback endpoints.
-     */
-    @Bean
-    @Order(1)
-    public SecurityFilterChain oauth2SecurityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .securityMatcher("/oauth2/**", "/login/oauth2/**")
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll())
-                .oauth2Login(oauth2 -> oauth2
-                        .authorizationEndpoint(authorization -> authorization
-                                .baseUri("/oauth2/authorize")
-                                .authorizationRequestRepository(authorizationRequestRepository))
-                        .redirectionEndpoint(redirection -> redirection
-                                .baseUri("/login/oauth2/code/*"))
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .userService(customOAuth2UserService)
-                                .oidcUserService(customOidcUserService))
-                        .successHandler(oAuth2AuthenticationSuccessHandler)
-                        .failureHandler(oAuth2AuthenticationFailureHandler))
-                .build();
-    }
-
-    /**
-     * Security filter chain for REST API endpoints (lower priority).
-     * This chain handles all other API requests with stateless JWT authentication.
+     * Security filter chain for REST API endpoints.
+     * This chain handles all API requests with stateless JWT authentication.
      */
     @Bean
     @Order(2)
@@ -97,8 +43,36 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // Public POST endpoints - Authentication
+                        .requestMatchers(HttpMethod.POST, "/v1/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/login/2fa").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/token/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/token/validate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/password/forgot").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/password/reset").permitAll()
+                        // Phone OTP Authentication (all methods)
+                        .requestMatchers("/v1/auth/phone/**").permitAll()
+                        // OAuth endpoints (all methods)
+                        .requestMatchers("/v1/oauth/**").permitAll()
+                        // OAuth2 browser flow endpoints
+                        .requestMatchers("/oauth2/**").permitAll()
+                        .requestMatchers("/login/oauth2/**").permitAll()
+                        // Health & Actuator
+                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                        // API Docs & Swagger
+                        .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/swagger-ui/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/swagger-ui.html").permitAll()
+                        // Internal endpoints (authenticated via API Key)
+                        .requestMatchers("/v1/internal/**").hasRole("API_KEY")
+                        .requestMatchers("/v1/migration/**").hasRole("API_KEY")
+                        .requestMatchers("/v1/users/internal/**").hasRole("API_KEY")
+                        // All other requests require authentication
                         .anyRequest().authenticated())
+                // API Key filter runs first for internal endpoints
+                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

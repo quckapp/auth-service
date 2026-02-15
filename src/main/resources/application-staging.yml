@@ -1,0 +1,87 @@
+# =============================================================================
+# STAGING Environment Configuration
+# =============================================================================
+# Pre-production staging environment (mirrors production)
+# Run with: -Dspring.profiles.active=staging
+# Docker: docker-compose -f docker/docker-compose-staging.yml up -d
+# Ports: MySQL 3368, Redis 6439, Kafka 29152
+# =============================================================================
+
+server:
+  port: 8081
+  servlet:
+    context-path: /api/auth
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+
+  # MySQL Database - Staging Server
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3368}/${DB_NAME:quckapp_auth_staging}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:staging_root_secret}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # Redis - Staging Server
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6439}
+      password: ${REDIS_PASSWORD:staging_redis_secret}
+
+  # Kafka - Staging Server
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:29152}
+
+  # Flyway - Careful with migrations in staging
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+    out-of-order: false
+
+# JWT Configuration - Staging
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 900000      # 15 minutes
+  refresh-token-expiration: 604800000  # 7 days
+  issuer: quckapp-auth-staging
+
+# OAuth2 Configuration
+oauth2:
+  frontend-callback-url: ${OAUTH2_FRONTEND_CALLBACK_URL:https://staging.quckapp.com/auth/callback}
+  mobile-deep-link-scheme: ${OAUTH2_MOBILE_SCHEME:quckapp-staging://}
+
+# Security Configuration - Production-like settings
+security:
+  rate-limit:
+    enabled: true
+    login:
+      max-attempts: 5
+      window-seconds: 300
+      block-duration-seconds: 900
+    api:
+      requests-per-minute: 100
+      requests-per-hour: 1000
+  audit:
+    enabled: true
+    log-successful-auth: true
+    log-failed-auth: true
+  encryption:
+    key: ${ENCRYPTION_KEY}
+
+# Logging - Production-like
+logging:
+  level:
+    com.quckapp.auth: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    root: WARN

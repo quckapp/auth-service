@@ -8,7 +8,6 @@ import com.quckapp.auth.security.ratelimit.RateLimitExceptionHandler;
 import com.quckapp.auth.security.ratelimit.RateLimitResult;
 import com.quckapp.auth.security.ratelimit.RateLimitOperations;
 import com.quckapp.auth.service.AuthService;
-import com.quckapp.auth.service.TwoFactorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -58,9 +57,6 @@ class AuthControllerRateLimitTest {
     @Mock
     private RateLimitOperations rateLimitService;
 
-    @Mock
-    private TwoFactorService twoFactorService;
-
     private RateLimitConfig config;
 
     @BeforeEach
@@ -71,7 +67,7 @@ class AuthControllerRateLimitTest {
         config.getLogin().setBlockDurationSeconds(900);
 
         objectMapper = new ObjectMapper();
-        AuthController authController = new AuthController(authService, twoFactorService, rateLimitService);
+        AuthController authController = new AuthController(authService, rateLimitService);
         mockMvc = MockMvcBuilders.standaloneSetup(authController)
                 .setControllerAdvice(new RateLimitExceptionHandler(), new TestExceptionHandler())
                 .build();

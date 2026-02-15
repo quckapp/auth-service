@@ -47,8 +47,8 @@ public class UserProfile {
 
     private Instant phoneVerifiedAt;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String username;
+    @Column(unique = true, length = 50)
+    private String username; // Nullable - user sets this on profile setup screen
 
     @Column(nullable = false, length = 100)
     private String displayName;

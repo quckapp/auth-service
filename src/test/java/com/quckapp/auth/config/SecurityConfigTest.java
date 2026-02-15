@@ -1,11 +1,6 @@
 package com.quckapp.auth.config;
 
 import com.quckapp.auth.security.jwt.JwtAuthenticationFilter;
-import com.quckapp.auth.security.oauth2.CustomOAuth2UserService;
-import com.quckapp.auth.security.oauth2.CustomOidcUserService;
-import com.quckapp.auth.security.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
-import com.quckapp.auth.security.oauth2.OAuth2AuthenticationFailureHandler;
-import com.quckapp.auth.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,35 +20,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SecurityConfigTest {
 
     @Mock
-    private CustomOAuth2UserService customOAuth2UserService;
-
-    @Mock
-    private CustomOidcUserService customOidcUserService;
-
-    @Mock
-    private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-
-    @Mock
-    private OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
-
-    @Mock
-    private HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository;
-
-    @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private SecurityConfig securityConfig;
 
     @BeforeEach
     void setUp() {
-        securityConfig = new SecurityConfig(
-                customOAuth2UserService,
-                customOidcUserService,
-                oAuth2AuthenticationSuccessHandler,
-                oAuth2AuthenticationFailureHandler,
-                httpCookieOAuth2AuthorizationRequestRepository,
-                jwtAuthenticationFilter
-        );
+        securityConfig = new SecurityConfig(jwtAuthenticationFilter);
     }
 
     @Nested

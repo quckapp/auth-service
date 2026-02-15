@@ -182,9 +182,23 @@ otp:
     resend-cooldown-seconds: 60
     max-requests-per-day: 5
     max-requests-per-ip-per-hour: 10
+  email:
+    length: 6
+    expiry-minutes: 10
+    max-attempts: 5
+    resend-cooldown-seconds: 60
+    max-requests-per-day: 10
+    max-requests-per-ip-per-hour: 20
+
+# Email Mock Configuration (for development)
+email:
+  mock:
+    enabled: ${EMAIL_MOCK_ENABLED:true}
 
 # SMS Configuration (Kafka-based)
 sms:
+  mock:
+    enabled: ${SMS_MOCK_ENABLED:false}
   provider: kafka
   kafka:
     topic: notification.sms.otp
@@ -242,6 +256,6 @@ springdoc:
     tryItOutEnabled: true
   show-actuator: false
   packages-to-scan: com.quckapp.auth.controller
-  paths-to-match: /v1/**
+  paths-to-match: /api/**, /v1/**
   default-produces-media-type: application/json
   default-consumes-media-type: application/json

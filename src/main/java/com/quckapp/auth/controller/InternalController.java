@@ -4,9 +4,11 @@ import com.quckapp.auth.domain.entity.AuthUser;
 import com.quckapp.auth.domain.entity.AuthUser.AuthStatus;
 import com.quckapp.auth.domain.repository.AuthUserRepository;
 import com.quckapp.auth.dto.*;
+import com.quckapp.auth.dto.UserProfileDtos.UserProfileDto;
 import com.quckapp.auth.security.jwt.JwtOperations;
 import com.quckapp.auth.service.AuthService;
 import com.quckapp.auth.service.SessionManagementService;
+import com.quckapp.auth.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -40,6 +42,7 @@ public class InternalController {
     private final JwtOperations jwtOperations;
     private final AuthService authService;
     private final SessionManagementService sessionManagementService;
+    private final UserProfileService userProfileService;
 
     // ==================== Token Introspection ====================
 
@@ -232,6 +235,28 @@ public class InternalController {
         }
 
         return ResponseEntity.ok(results);
+    }
+
+    // ==================== User Profile Lookup (with phone numbers) ====================
+
+    @GetMapping("/users/profiles/batch")
+    @Operation(summary = "Get user profiles by IDs",
+               description = "Fetch full user profiles (including phone numbers) by IDs. Used for enriching conversation data.")
+    public ResponseEntity<List<UserProfileDto>> getProfilesByIds(
+            @RequestHeader("X-API-Key") String apiKey,
+            @RequestParam List<UUID> ids) {
+        log.debug("Internal batch profile lookup for {} users", ids.size());
+        return ResponseEntity.ok(userProfileService.getUsersByIds(ids));
+    }
+
+    @GetMapping("/users/profiles/batch/external")
+    @Operation(summary = "Get user profiles by external IDs",
+               description = "Fetch full user profiles (including phone numbers) by external IDs.")
+    public ResponseEntity<List<UserProfileDto>> getProfilesByExternalIds(
+            @RequestHeader("X-API-Key") String apiKey,
+            @RequestParam List<String> externalIds) {
+        log.debug("Internal batch profile lookup by external IDs for {} users", externalIds.size());
+        return ResponseEntity.ok(userProfileService.getUsersByExternalIds(externalIds));
     }
 
     // ==================== Session Management ====================

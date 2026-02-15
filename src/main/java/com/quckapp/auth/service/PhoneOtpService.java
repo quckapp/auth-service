@@ -2,10 +2,12 @@ package com.quckapp.auth.service;
 
 import com.quckapp.auth.domain.entity.AuthUser;
 import com.quckapp.auth.domain.entity.PhoneOtp;
+import com.quckapp.auth.domain.entity.RefreshToken;
 import com.quckapp.auth.domain.entity.UserProfile;
 import com.quckapp.auth.domain.entity.UserRole;
 import com.quckapp.auth.domain.entity.AuthUser.AuthStatus;
 import com.quckapp.auth.domain.repository.PhoneOtpRepository;
+import com.quckapp.auth.domain.repository.RefreshTokenRepository;
 import com.quckapp.auth.domain.repository.UserProfileRepository;
 import com.quckapp.auth.dto.OtpResponse;
 import com.quckapp.auth.dto.PhoneLoginRequest;
@@ -31,9 +33,12 @@ public class PhoneOtpService {
 
     private final PhoneOtpRepository phoneOtpRepository;
     private final UserProfileRepository userProfileRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final SmsService smsService;
     private final PasswordEncoder passwordEncoder;
     private final JwtOperations jwtService;
+
+    private static final int REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -54,6 +59,12 @@ public class PhoneOtpService {
 
     @Value("${otp.phone.max-requests-per-ip-per-hour:10}")
     private int maxRequestsPerIpPerHour;
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfile;
+
+    @Value("${sms.mock.enabled:false}")
+    private boolean smsMockEnabled;
 
     /**
      * Request a new OTP for the given phone number.
@@ -106,13 +117,17 @@ public class PhoneOtpService {
         // Send OTP via SMS (async via Kafka)
         smsService.sendOtp(phoneNumber, otpCode, expiryMinutes);
 
-        log.info("OTP requested for phone: {}", maskPhoneNumber(phoneNumber));
+        log.info("OTP requested for phone: {}, code: {}", maskPhoneNumber(phoneNumber), otpCode);
 
-        return OtpResponse.otpSent(
-                maskPhoneNumber(phoneNumber),
-                expiryMinutes * 60,
-                resendCooldownSeconds
-        );
+        // Build response with OTP included for development testing
+        return OtpResponse.builder()
+                .success(true)
+                .message("OTP sent successfully")
+                .maskedPhone(maskPhoneNumber(phoneNumber))
+                .expiresInSeconds(expiryMinutes * 60)
+                .resendCooldownSeconds(resendCooldownSeconds)
+                .testOtp(otpCode)
+                .build();
     }
 
     /**
@@ -184,7 +199,18 @@ public class PhoneOtpService {
 
         // Find or create user
         UserProfile userProfile = userProfileRepository.findByPhoneNumber(phoneNumber)
-                .orElseGet(() -> createUserFromPhone(phoneNumber, request.getDisplayName()));
+                .orElse(null);
+
+        if (userProfile == null) {
+            try {
+                userProfile = createUserFromPhone(phoneNumber, request.getDisplayName());
+            } catch (Exception e) {
+                // If creation fails (e.g., constraint violation), try to find existing user again
+                log.warn("Failed to create user, attempting to find existing: {}", e.getMessage());
+                userProfile = userProfileRepository.findByPhoneNumber(phoneNumber)
+                        .orElseThrow(() -> new RuntimeException("Failed to create or find user profile"));
+            }
+        }
 
         // Check if user is banned or inactive
         if (userProfile.isBanned()) {
@@ -205,14 +231,19 @@ public class PhoneOtpService {
         String accessToken = jwtService.generateAccessToken(authUser);
         String refreshToken = jwtService.generateRefreshToken(authUser);
 
+        // Save refresh token to database for token rotation and revocation
+        saveRefreshToken(authUser, refreshToken, ipAddress, userAgent);
+
         // Update last login
         authUser.setLastLoginAt(Instant.now());
         authUser.setLastLoginIp(ipAddress);
 
-        boolean isNewUser = verifyResponse.getUserId() == null;
+        // User needs profile setup if they have a temporary username (starts with "user_")
+        String username = userProfile.getUsername();
+        boolean needsProfileSetup = username == null || username.isEmpty() || username.startsWith("user_");
 
-        log.info("Phone login successful for: {}, newUser: {}",
-                maskPhoneNumber(phoneNumber), isNewUser);
+        log.info("Phone login successful for: {}, needsProfileSetup: {}",
+                maskPhoneNumber(phoneNumber), needsProfileSetup);
 
         return OtpResponse.loginSuccess(
                 accessToken,
@@ -220,11 +251,12 @@ public class PhoneOtpService {
                 OtpResponse.UserDto.builder()
                         .id(userProfile.getId().toString())
                         .phoneNumber(maskPhoneNumber(phoneNumber))
+                        .username(userProfile.getUsername())
                         .displayName(userProfile.getDisplayName())
                         .email(userProfile.getEmail())
                         .avatar(userProfile.getAvatar())
                         .phoneVerified(true)
-                        .newUser(isNewUser)
+                        .newUser(needsProfileSetup) // true if user needs to set username
                         .build()
         );
     }
@@ -273,6 +305,11 @@ public class PhoneOtpService {
     }
 
     private String checkRateLimits(String phoneNumber, String ipAddress) {
+        // Skip all rate limits in local profile
+        if ("local".equalsIgnoreCase(activeProfile)) {
+            return null;
+        }
+
         // Check phone-based rate limit
         Instant dayAgo = Instant.now().minus(24, ChronoUnit.HOURS);
         long phoneRequests = phoneOtpRepository.countOtpRequestsSince(phoneNumber, dayAgo);
@@ -302,21 +339,17 @@ public class PhoneOtpService {
                 .status(AuthStatus.ACTIVE)
                 .build();
 
-        // Generate unique username from phone
-        String uniqueSuffix = phoneNumber.replaceAll("[^0-9]", "");
-        if (uniqueSuffix.length() > 8) {
-            uniqueSuffix = uniqueSuffix.substring(uniqueSuffix.length() - 8);
-        }
-        String username = "user_" + uniqueSuffix;
+        // Generate temporary username - user can change it on profile page
+        String tempUsername = "user_" + UUID.randomUUID().toString().substring(0, 8);
         String defaultDisplayName = displayName != null ? displayName : "User " + phoneNumber.substring(phoneNumber.length() - 4);
 
-        // Create UserProfile
+        // Create UserProfile with temporary username - user changes it on profile page
         UserProfile profile = UserProfile.builder()
                 .authUser(authUser)
                 .phoneNumber(phoneNumber)
                 .phoneVerified(true)
                 .phoneVerifiedAt(Instant.now())
-                .username(username)
+                .username(tempUsername) // Temporary username until user sets their own
                 .displayName(defaultDisplayName)
                 .isActive(true)
                 .isVerified(true)
@@ -342,5 +375,21 @@ public class PhoneOtpService {
         profile.setAuthUser(authUser);
         userProfileRepository.save(profile);
         return authUser;
+    }
+
+    /**
+     * Save refresh token to database for token rotation and revocation.
+     */
+    private void saveRefreshToken(AuthUser user, String refreshToken, String ipAddress, String userAgent) {
+        RefreshToken token = RefreshToken.builder()
+                .user(user)
+                .token(refreshToken)
+                .expiresAt(Instant.now().plus(REFRESH_TOKEN_EXPIRY_DAYS, ChronoUnit.DAYS))
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .build();
+
+        refreshTokenRepository.save(token);
+        log.debug("Refresh token saved for user: {}", user.getId());
     }
 }

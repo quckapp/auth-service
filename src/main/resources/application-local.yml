@@ -70,6 +70,18 @@ sms:
   mock:
     enabled: true
 
+# API Keys - Local Development
+api-keys:
+  enabled: true
+  header-name: X-API-Key
+  internal-services:
+    - name: nestjs-backend
+      key: local-dev-api-key-change-in-production
+      permissions: [READ_USER, VALIDATE_TOKEN]
+    - name: elixir-realtime
+      key: local-dev-api-key-change-in-production
+      permissions: [READ_USER, VALIDATE_TOKEN]
+
 # Logging - Verbose for debugging
 logging:
   level:

@@ -1,0 +1,104 @@
+# =============================================================================
+# STAGING Environment - Docker Compose
+# =============================================================================
+# Ports: MySQL 3368, Redis 6439, Kafka 29152, Zookeeper 2241
+# Usage: docker-compose -f docker/docker-compose-staging.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # MySQL Database
+  auth-mysql-staging:
+    image: mysql:8.0
+    container_name: auth-mysql-staging
+    ports:
+      - "3368:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: staging_root_secret
+      MYSQL_DATABASE: quckapp_auth_staging
+      MYSQL_USER: quckapp_staging
+      MYSQL_PASSWORD: staging_password
+    volumes:
+      - auth_mysql_staging_data:/var/lib/mysql
+    networks:
+      - auth-staging-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pstaging_root_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis
+  auth-redis-staging:
+    image: redis:7-alpine
+    container_name: auth-redis-staging
+    ports:
+      - "6439:6379"
+    command: redis-server --appendonly yes --requirepass staging_redis_secret
+    volumes:
+      - auth_redis_staging_data:/data
+    networks:
+      - auth-staging-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "staging_redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper
+  auth-zookeeper-staging:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: auth-zookeeper-staging
+    ports:
+      - "2241:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - auth_zookeeper_staging_data:/var/lib/zookeeper/data
+    networks:
+      - auth-staging-network
+    healthcheck:
+      test: echo srvr | nc localhost 2181 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka
+  auth-kafka-staging:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: auth-kafka-staging
+    ports:
+      - "9152:9092"
+      - "29152:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: auth-zookeeper-staging:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://auth-kafka-staging:9092,PLAINTEXT_HOST://localhost:29152
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - auth_kafka_staging_data:/var/lib/kafka/data
+    depends_on:
+      auth-zookeeper-staging:
+        condition: service_healthy
+    networks:
+      - auth-staging-network
+    healthcheck:
+      test: kafka-topics --bootstrap-server localhost:9092 --list || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  auth_mysql_staging_data:
+  auth_redis_staging_data:
+  auth_zookeeper_staging_data:
+  auth_kafka_staging_data:
+
+networks:
+  auth-staging-network:
+    driver: bridge

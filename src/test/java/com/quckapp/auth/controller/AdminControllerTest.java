@@ -346,6 +346,89 @@ class AdminControllerTest {
 
             verify(roleService).deleteRole(TEST_ROLE_ID);
         }
+
+        @Test
+        @DisplayName("should update role")
+        void shouldUpdateRole() throws Exception {
+            setupAdminAccess();
+
+            UpdateRoleRequest request = UpdateRoleRequest.builder()
+                    .description("Updated role description")
+                    .priority(75)
+                    .active(true)
+                    .build();
+
+            RoleDto updatedRole = RoleDto.builder()
+                    .id(TEST_ROLE_ID)
+                    .name("ADMIN")
+                    .description("Updated role description")
+                    .build();
+
+            when(roleService.updateRole(eq(TEST_ROLE_ID), any(UpdateRoleRequest.class)))
+                    .thenReturn(updatedRole);
+
+            mockMvc.perform(put("/v1/admin/roles/{roleId}", TEST_ROLE_ID)
+                            .header("Authorization", AUTH_HEADER)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(TEST_ROLE_ID.toString()))
+                    .andExpect(jsonPath("$.description").value("Updated role description"));
+
+            verify(roleService).updateRole(eq(TEST_ROLE_ID), any(UpdateRoleRequest.class));
+        }
+
+        @Test
+        @DisplayName("should add permissions to role")
+        void shouldAddPermissionsToRole() throws Exception {
+            setupAdminAccess();
+
+            UUID permission1 = UUID.randomUUID();
+            UUID permission2 = UUID.randomUUID();
+            Set<UUID> permissionIds = Set.of(permission1, permission2);
+
+            PermissionDto perm1 = PermissionDto.builder()
+                    .id(permission1)
+                    .name("users:read")
+                    .build();
+            PermissionDto perm2 = PermissionDto.builder()
+                    .id(permission2)
+                    .name("users:write")
+                    .build();
+
+            RoleWithPermissionsDto roleWithPerms = RoleWithPermissionsDto.builder()
+                    .id(TEST_ROLE_ID)
+                    .name("ADMIN")
+                    .permissions(List.of(perm1, perm2))
+                    .build();
+
+            when(roleService.getRoleWithPermissions(TEST_ROLE_ID)).thenReturn(roleWithPerms);
+
+            mockMvc.perform(post("/v1/admin/roles/{roleId}/permissions", TEST_ROLE_ID)
+                            .header("Authorization", AUTH_HEADER)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(permissionIds)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(TEST_ROLE_ID.toString()))
+                    .andExpect(jsonPath("$.permissions").isArray())
+                    .andExpect(jsonPath("$.permissions.length()").value(2));
+
+            verify(roleService).assignPermissionsToRole(eq(TEST_ROLE_ID), anySet(), eq(ADMIN_USER_ID));
+        }
+
+        @Test
+        @DisplayName("should remove permission from role")
+        void shouldRemovePermissionFromRole() throws Exception {
+            setupAdminAccess();
+
+            mockMvc.perform(delete("/v1/admin/roles/{roleId}/permissions/{permissionId}",
+                            TEST_ROLE_ID, TEST_PERMISSION_ID)
+                            .header("Authorization", AUTH_HEADER))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.message").value("Permission removed from role"));
+
+            verify(roleService).removePermissionFromRole(TEST_ROLE_ID, TEST_PERMISSION_ID);
+        }
     }
 
     @Nested
@@ -438,6 +521,32 @@ class AdminControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(TEST_PERMISSION_ID.toString()))
                     .andExpect(jsonPath("$[0].name").value("admin:access"));
+        }
+
+        @Test
+        @DisplayName("should get permission by ID")
+        void shouldGetPermissionById() throws Exception {
+            setupAdminAccess();
+
+            PermissionDto permission = PermissionDto.builder()
+                    .id(TEST_PERMISSION_ID)
+                    .name("admin:access")
+                    .resource("admin")
+                    .action("access")
+                    .description("Admin access permission")
+                    .build();
+
+            when(permissionService.getPermission(TEST_PERMISSION_ID)).thenReturn(permission);
+
+            mockMvc.perform(get("/v1/admin/permissions/{permissionId}", TEST_PERMISSION_ID)
+                            .header("Authorization", AUTH_HEADER))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(TEST_PERMISSION_ID.toString()))
+                    .andExpect(jsonPath("$.name").value("admin:access"))
+                    .andExpect(jsonPath("$.resource").value("admin"))
+                    .andExpect(jsonPath("$.action").value("access"));
+
+            verify(permissionService).getPermission(TEST_PERMISSION_ID);
         }
 
         @Test

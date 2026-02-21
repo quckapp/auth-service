@@ -5,7 +5,6 @@ import com.quckapp.auth.dto.*;
 import com.quckapp.auth.security.ratelimit.RateLimitOperations;
 import com.quckapp.auth.security.ratelimit.RateLimitResult;
 import com.quckapp.auth.service.AuthService;
-import com.quckapp.auth.service.TwoFactorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,9 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import java.util.HashSet;
-import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,9 +44,6 @@ class AuthControllerTest {
     private AuthService authService;
 
     @Mock
-    private TwoFactorService twoFactorService;
-
-    @Mock
     private RateLimitOperations rateLimitService;
 
     private MockMvc mockMvc;
@@ -59,7 +52,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        AuthController authController = new AuthController(authService, twoFactorService, rateLimitService);
+        AuthController authController = new AuthController(authService, rateLimitService);
         mockMvc = MockMvcBuilders.standaloneSetup(authController)
                 .setControllerAdvice(new TestExceptionHandler())
                 .build();
@@ -206,83 +199,7 @@ class AuthControllerTest {
         }
     }
 
-    @Nested
-    @DisplayName("Token management tests")
-    class TokenManagementTests {
-
-        @Test
-        @DisplayName("should refresh token successfully")
-        void shouldRefreshTokenSuccessfully() throws Exception {
-            RefreshTokenRequest request = RefreshTokenRequest.builder()
-                    .refreshToken("refresh-token")
-                    .build();
-
-            TokenResponse response = TokenResponse.builder()
-                    .accessToken("new-access-token")
-                    .refreshToken("new-refresh-token")
-                    .tokenType("Bearer")
-                    .expiresIn(3600)
-                    .build();
-
-            when(authService.refreshToken(any(RefreshTokenRequest.class), any(ClientInfo.class))).thenReturn(response);
-
-            mockMvc.perform(post("/v1/token/refresh")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.accessToken").value("new-access-token"))
-                    .andExpect(jsonPath("$.refreshToken").value("new-refresh-token"));
-        }
-
-        @Test
-        @DisplayName("should validate token")
-        void shouldValidateToken() throws Exception {
-            TokenValidationRequest request = TokenValidationRequest.builder()
-                    .token("valid-token")
-                    .build();
-
-            TokenValidationResponse response = TokenValidationResponse.builder()
-                    .valid(true)
-                    .userId("user-123")
-                    .email("test@example.com")
-                    .build();
-
-            when(authService.validateToken(any(TokenValidationRequest.class))).thenReturn(response);
-
-            mockMvc.perform(post("/v1/token/validate")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.valid").value(true))
-                    .andExpect(jsonPath("$.userId").value("user-123"));
-        }
-
-        @Test
-        @DisplayName("should revoke token")
-        void shouldRevokeToken() throws Exception {
-            RevokeTokenRequest request = RevokeTokenRequest.builder()
-                    .token("token-to-revoke")
-                    .build();
-
-            mockMvc.perform(post("/v1/token/revoke")
-                            .header("Authorization", "Bearer valid-token")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk());
-
-            verify(authService).revokeToken(eq("valid-token"), any(RevokeTokenRequest.class), any(ClientInfo.class));
-        }
-
-        @Test
-        @DisplayName("should revoke all tokens")
-        void shouldRevokeAllTokens() throws Exception {
-            mockMvc.perform(post("/v1/token/revoke-all")
-                            .header("Authorization", "Bearer valid-token"))
-                    .andExpect(status().isOk());
-
-            verify(authService).revokeAllTokens(eq("valid-token"), any(ClientInfo.class));
-        }
-    }
+    // Token management tests moved to TokenControllerTest (endpoints now in TokenController)
 
     @Nested
     @DisplayName("Password management tests")
@@ -340,100 +257,7 @@ class AuthControllerTest {
         }
     }
 
-    @Nested
-    @DisplayName("2FA tests")
-    class TwoFactorTests {
-
-        @Test
-        @DisplayName("should setup 2FA")
-        void shouldSetup2FA() throws Exception {
-            TwoFactorSetupResponse response = TwoFactorSetupResponse.builder()
-                    .secret("secret123")
-                    .qrCodeUrl("https://qr.example.com")
-                    .otpAuthUrl("otpauth://totp/...")
-                    .build();
-
-            when(twoFactorService.setupTwoFactor(anyString())).thenReturn(response);
-
-            mockMvc.perform(post("/v1/2fa/setup")
-                            .header("Authorization", "Bearer valid-token"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.secret").value("secret123"))
-                    .andExpect(jsonPath("$.qrCodeUrl").exists());
-        }
-
-        @Test
-        @DisplayName("should enable 2FA")
-        void shouldEnable2FA() throws Exception {
-            TwoFactorEnableRequest request = TwoFactorEnableRequest.builder()
-                    .code("123456")
-                    .build();
-
-            Set<String> backupCodes = new HashSet<>();
-            backupCodes.add("1234-5678");
-            backupCodes.add("8765-4321");
-
-            TwoFactorEnableResponse response = TwoFactorEnableResponse.builder()
-                    .enabled(true)
-                    .backupCodes(backupCodes)
-                    .build();
-
-            when(twoFactorService.enableTwoFactor(anyString(), any(TwoFactorEnableRequest.class), any(ClientInfo.class)))
-                    .thenReturn(response);
-
-            mockMvc.perform(post("/v1/2fa/enable")
-                            .header("Authorization", "Bearer valid-token")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.enabled").value(true))
-                    .andExpect(jsonPath("$.backupCodes").isArray());
-        }
-
-        @Test
-        @DisplayName("should disable 2FA")
-        void shouldDisable2FA() throws Exception {
-            TwoFactorDisableRequest request = TwoFactorDisableRequest.builder()
-                    .code("123456")
-                    .password("password123")
-                    .build();
-
-            mockMvc.perform(post("/v1/2fa/disable")
-                            .header("Authorization", "Bearer valid-token")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").exists());
-
-            verify(twoFactorService).disableTwoFactor(anyString(), any(TwoFactorDisableRequest.class), any(ClientInfo.class));
-        }
-
-        @Test
-        @DisplayName("should generate backup codes")
-        void shouldGenerateBackupCodes() throws Exception {
-            TwoFactorVerifyRequest request = TwoFactorVerifyRequest.builder()
-                    .code("123456")
-                    .build();
-
-            Set<String> backupCodes = new HashSet<>();
-            backupCodes.add("1111-2222");
-            backupCodes.add("3333-4444");
-
-            BackupCodesResponse response = BackupCodesResponse.builder()
-                    .backupCodes(backupCodes)
-                    .build();
-
-            when(twoFactorService.generateBackupCodes(anyString(), any(TwoFactorVerifyRequest.class), any(ClientInfo.class)))
-                    .thenReturn(response);
-
-            mockMvc.perform(post("/v1/2fa/backup-codes")
-                            .header("Authorization", "Bearer valid-token")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.backupCodes").isArray());
-        }
-    }
+    // 2FA tests moved to TwoFactorControllerTest (endpoints now in TwoFactorController)
 
     @Nested
     @DisplayName("OAuth tests")
@@ -495,43 +319,5 @@ class AuthControllerTest {
         }
     }
 
-    @Nested
-    @DisplayName("Session tests")
-    class SessionTests {
-
-        @Test
-        @DisplayName("should get active sessions")
-        void shouldGetActiveSessions() throws Exception {
-            SessionsResponse response = SessionsResponse.builder()
-                    .currentSessionId("session-123")
-                    .build();
-
-            when(authService.getActiveSessions(anyString())).thenReturn(response);
-
-            mockMvc.perform(get("/v1/sessions")
-                            .header("Authorization", "Bearer valid-token"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.currentSessionId").value("session-123"));
-        }
-
-        @Test
-        @DisplayName("should terminate specific session")
-        void shouldTerminateSpecificSession() throws Exception {
-            mockMvc.perform(delete("/v1/sessions/session-123")
-                            .header("Authorization", "Bearer valid-token"))
-                    .andExpect(status().isOk());
-
-            verify(authService).terminateSession(eq("valid-token"), eq("session-123"), any(ClientInfo.class));
-        }
-
-        @Test
-        @DisplayName("should terminate all other sessions")
-        void shouldTerminateAllOtherSessions() throws Exception {
-            mockMvc.perform(delete("/v1/sessions")
-                            .header("Authorization", "Bearer valid-token"))
-                    .andExpect(status().isOk());
-
-            verify(authService).terminateAllOtherSessions(eq("valid-token"), any(ClientInfo.class));
-        }
-    }
+    // Session tests moved to SessionControllerTest (endpoints now in SessionController)
 }

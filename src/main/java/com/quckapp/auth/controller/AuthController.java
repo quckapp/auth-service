@@ -7,7 +7,6 @@ import com.quckapp.auth.security.ratelimit.RateLimitExceededException;
 import com.quckapp.auth.security.ratelimit.RateLimitResult;
 import com.quckapp.auth.security.ratelimit.RateLimitOperations;
 import com.quckapp.auth.service.AuthService;
-import com.quckapp.auth.service.TwoFactorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -30,7 +29,6 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
-    private final TwoFactorService twoFactorService;
     private final RateLimitOperations rateLimitService;
 
     // ============================================
@@ -98,48 +96,8 @@ public class AuthController {
     }
 
     // ============================================
-    // Token Management
+    // Token Management — handled by TokenController at /v1/token
     // ============================================
-
-    @PostMapping("/token/refresh")
-    @Operation(summary = "Refresh access token", tags = {"Token Management"})
-    @RateLimit(requests = 30, window = 60, key = KeyType.IP)
-    public ResponseEntity<TokenResponse> refreshToken(
-            @Valid @RequestBody RefreshTokenRequest request,
-            HttpServletRequest httpRequest) {
-        return ResponseEntity.ok(authService.refreshToken(request, getClientInfo(httpRequest)));
-    }
-
-    @PostMapping("/token/validate")
-    @Operation(summary = "Validate JWT token", tags = {"Token Management"})
-    @RateLimit(requests = 100, window = 60, key = KeyType.IP)
-    public ResponseEntity<TokenValidationResponse> validateToken(
-            @Valid @RequestBody TokenValidationRequest request) {
-        return ResponseEntity.ok(authService.validateToken(request));
-    }
-
-    @PostMapping("/token/revoke")
-    @Operation(summary = "Revoke a specific token", tags = {"Token Management"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 10, window = 60, key = KeyType.USER)
-    public ResponseEntity<Void> revokeToken(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            @Valid @RequestBody RevokeTokenRequest request,
-            HttpServletRequest httpRequest) {
-        authService.revokeToken(extractToken(authHeader), request, getClientInfo(httpRequest));
-        return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/token/revoke-all")
-    @Operation(summary = "Revoke all tokens for current user", tags = {"Token Management"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 5, window = 300, key = KeyType.USER)
-    public ResponseEntity<Void> revokeAllTokens(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            HttpServletRequest httpRequest) {
-        authService.revokeAllTokens(extractToken(authHeader), getClientInfo(httpRequest));
-        return ResponseEntity.ok().build();
-    }
 
     // ============================================
     // Password Management
@@ -178,53 +136,8 @@ public class AuthController {
     }
 
     // ============================================
-    // Two-Factor Authentication
+    // Two-Factor Authentication — handled by TwoFactorController at /v1/2fa
     // ============================================
-
-    @PostMapping("/2fa/setup")
-    @Operation(summary = "Setup 2FA - get QR code", tags = {"Two-Factor Authentication"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 10, window = 3600, key = KeyType.USER)
-    public ResponseEntity<TwoFactorSetupResponse> setup2FA(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
-        return ResponseEntity.ok(twoFactorService.setupTwoFactor(extractToken(authHeader)));
-    }
-
-    @PostMapping("/2fa/enable")
-    @Operation(summary = "Enable 2FA after verification", tags = {"Two-Factor Authentication"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 5, window = 300, key = KeyType.USER)
-    public ResponseEntity<TwoFactorEnableResponse> enable2FA(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            @Valid @RequestBody TwoFactorEnableRequest request,
-            HttpServletRequest httpRequest) {
-        return ResponseEntity.ok(twoFactorService.enableTwoFactor(
-                extractToken(authHeader), request, getClientInfo(httpRequest)));
-    }
-
-    @PostMapping("/2fa/disable")
-    @Operation(summary = "Disable 2FA", tags = {"Two-Factor Authentication"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 3, window = 3600, key = KeyType.USER)
-    public ResponseEntity<MessageResponse> disable2FA(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            @Valid @RequestBody TwoFactorDisableRequest request,
-            HttpServletRequest httpRequest) {
-        twoFactorService.disableTwoFactor(extractToken(authHeader), request, getClientInfo(httpRequest));
-        return ResponseEntity.ok(new MessageResponse("2FA disabled successfully"));
-    }
-
-    @PostMapping("/2fa/backup-codes")
-    @Operation(summary = "Generate new backup codes", tags = {"Two-Factor Authentication"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 3, window = 3600, key = KeyType.USER)
-    public ResponseEntity<BackupCodesResponse> generateBackupCodes(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            @Valid @RequestBody TwoFactorVerifyRequest request,
-            HttpServletRequest httpRequest) {
-        return ResponseEntity.ok(twoFactorService.generateBackupCodes(
-                extractToken(authHeader), request, getClientInfo(httpRequest)));
-    }
 
     // ============================================
     // OAuth2
@@ -263,42 +176,6 @@ public class AuthController {
             HttpServletRequest httpRequest) {
         authService.unlinkOAuthProvider(extractToken(authHeader), provider, getClientInfo(httpRequest));
         return ResponseEntity.ok(new MessageResponse("Provider unlinked successfully"));
-    }
-
-    // ============================================
-    // Sessions
-    // ============================================
-
-    @GetMapping("/sessions")
-    @Operation(summary = "Get active sessions", tags = {"Sessions"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 30, window = 60, key = KeyType.USER)
-    public ResponseEntity<SessionsResponse> getSessions(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
-        return ResponseEntity.ok(authService.getActiveSessions(extractToken(authHeader)));
-    }
-
-    @DeleteMapping("/sessions/{sessionId}")
-    @Operation(summary = "Terminate specific session", tags = {"Sessions"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 10, window = 60, key = KeyType.USER)
-    public ResponseEntity<Void> terminateSession(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            @PathVariable String sessionId,
-            HttpServletRequest httpRequest) {
-        authService.terminateSession(extractToken(authHeader), sessionId, getClientInfo(httpRequest));
-        return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/sessions")
-    @Operation(summary = "Terminate all other sessions", tags = {"Sessions"})
-    @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(requests = 5, window = 300, key = KeyType.USER)
-    public ResponseEntity<Void> terminateAllSessions(
-            @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader,
-            HttpServletRequest httpRequest) {
-        authService.terminateAllOtherSessions(extractToken(authHeader), getClientInfo(httpRequest));
-        return ResponseEntity.ok().build();
     }
 
     // ============================================

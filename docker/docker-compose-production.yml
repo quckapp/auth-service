@@ -1,0 +1,105 @@
+# =============================================================================
+# PRODUCTION Environment - Docker Compose
+# =============================================================================
+# Ports: MySQL 3378, Redis 6449, Kafka 29162, Zookeeper 2251
+# Usage: docker-compose -f docker/docker-compose-production.yml up -d
+# WARNING: For local testing only. Use managed services in actual production.
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # MySQL Database
+  auth-mysql-production:
+    image: mysql:8.0
+    container_name: auth-mysql-production
+    ports:
+      - "3378:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-prod_root_secret}
+      MYSQL_DATABASE: quckapp_auth
+      MYSQL_USER: ${MYSQL_USER:-quckapp_prod}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-prod_password}
+    volumes:
+      - auth_mysql_production_data:/var/lib/mysql
+    networks:
+      - auth-production-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-prod_root_secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis
+  auth-redis-production:
+    image: redis:7-alpine
+    container_name: auth-redis-production
+    ports:
+      - "6449:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-prod_redis_secret}
+    volumes:
+      - auth_redis_production_data:/data
+    networks:
+      - auth-production-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-prod_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper
+  auth-zookeeper-production:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: auth-zookeeper-production
+    ports:
+      - "2251:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - auth_zookeeper_production_data:/var/lib/zookeeper/data
+    networks:
+      - auth-production-network
+    healthcheck:
+      test: echo srvr | nc localhost 2181 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka
+  auth-kafka-production:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: auth-kafka-production
+    ports:
+      - "9162:9092"
+      - "29162:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: auth-zookeeper-production:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://auth-kafka-production:9092,PLAINTEXT_HOST://localhost:29162
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - auth_kafka_production_data:/var/lib/kafka/data
+    depends_on:
+      auth-zookeeper-production:
+        condition: service_healthy
+    networks:
+      - auth-production-network
+    healthcheck:
+      test: kafka-topics --bootstrap-server localhost:9092 --list || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  auth_mysql_production_data:
+  auth_redis_production_data:
+  auth_zookeeper_production_data:
+  auth_kafka_production_data:
+
+networks:
+  auth-production-network:
+    driver: bridge

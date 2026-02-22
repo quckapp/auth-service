@@ -1,0 +1,104 @@
+# =============================================================================
+# UAT3 Environment - Docker Compose
+# =============================================================================
+# Ports: MySQL 3358, Redis 6429, Kafka 29142, Zookeeper 2231
+# Usage: docker-compose -f docker/docker-compose-uat3.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # MySQL Database
+  auth-mysql-uat3:
+    image: mysql:8.0
+    container_name: auth-mysql-uat3
+    ports:
+      - "3358:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: uat3_root_secret
+      MYSQL_DATABASE: quckapp_auth_uat3
+      MYSQL_USER: quckapp_uat3
+      MYSQL_PASSWORD: uat3_password
+    volumes:
+      - auth_mysql_uat3_data:/var/lib/mysql
+    networks:
+      - auth-uat3-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-puat3_root_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis
+  auth-redis-uat3:
+    image: redis:7-alpine
+    container_name: auth-redis-uat3
+    ports:
+      - "6429:6379"
+    command: redis-server --appendonly yes --requirepass uat3_redis_secret
+    volumes:
+      - auth_redis_uat3_data:/data
+    networks:
+      - auth-uat3-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "uat3_redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper
+  auth-zookeeper-uat3:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: auth-zookeeper-uat3
+    ports:
+      - "2231:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - auth_zookeeper_uat3_data:/var/lib/zookeeper/data
+    networks:
+      - auth-uat3-network
+    healthcheck:
+      test: echo srvr | nc localhost 2181 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka
+  auth-kafka-uat3:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: auth-kafka-uat3
+    ports:
+      - "9142:9092"
+      - "29142:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: auth-zookeeper-uat3:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://auth-kafka-uat3:9092,PLAINTEXT_HOST://localhost:29142
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - auth_kafka_uat3_data:/var/lib/kafka/data
+    depends_on:
+      auth-zookeeper-uat3:
+        condition: service_healthy
+    networks:
+      - auth-uat3-network
+    healthcheck:
+      test: kafka-topics --bootstrap-server localhost:9092 --list || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  auth_mysql_uat3_data:
+  auth_redis_uat3_data:
+  auth_zookeeper_uat3_data:
+  auth_kafka_uat3_data:
+
+networks:
+  auth-uat3-network:
+    driver: bridge

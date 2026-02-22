@@ -67,6 +67,70 @@ public class UserProfileDtos {
         private String publicKey;
     }
 
+    /**
+     * Request DTO for PATCH /v1/users/profile (mobile-friendly)
+     * Accepts firstName/lastName for mobile clients that use separate name fields
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PatchProfileRequest {
+        @Size(max = 50, message = "First name cannot exceed 50 characters")
+        private String firstName;
+
+        @Size(max = 50, message = "Last name cannot exceed 50 characters")
+        private String lastName;
+
+        @Size(min = 2, max = 100, message = "Display name must be 2-100 characters")
+        private String displayName;
+
+        @Size(min = 3, max = 50, message = "Username must be 3-50 characters")
+        @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "Username can only contain letters, numbers, and underscores")
+        private String username;
+
+        @Email(message = "Invalid email format")
+        private String email;
+    }
+
+    /**
+     * Response DTO for profile update operations
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProfileUpdateResponse {
+        private boolean success;
+        private String message;
+        private UserProfileDto user;
+    }
+
+    /**
+     * Request DTO for connecting email to account
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EmailConnectRequest {
+        @NotBlank(message = "Email is required")
+        @Email(message = "Invalid email format")
+        private String email;
+    }
+
+    /**
+     * Response DTO for email connect operation
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EmailConnectResponse {
+        private boolean success;
+        private String message;
+    }
+
     @Data
     @Builder
     @NoArgsConstructor

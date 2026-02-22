@@ -7,6 +7,7 @@ import com.quckapp.auth.dto.*;
 import com.quckapp.auth.dto.LoginHistoryDtos.RecordLoginRequest;
 import com.quckapp.auth.dto.SessionDtos.ActiveSessionDto;
 import com.quckapp.auth.dto.SessionDtos.CreateSessionRequest;
+import com.quckapp.auth.dto.UserProfileDtos.CreateProfileRequest;
 import com.quckapp.auth.kafka.UserEventOperations;
 import com.quckapp.auth.security.jwt.JwtOperations;
 import com.quckapp.auth.service.*;
@@ -38,6 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private final SessionManagementOperations sessionManagementService;
     private final LoginHistoryOperations loginHistoryService;
     private final UserEventOperations userEventPublisher;
+    private final UserProfileService userProfileService;
 
     private static final int MAX_LOGIN_ATTEMPTS = 5;
     private static final int LOCKOUT_MINUTES = 15;
@@ -59,6 +61,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         user = authUserRepository.save(user);
+
+        // Create UserProfile for the new user
+        createUserProfile(user);
 
         // Generate tokens
         String accessToken = jwtService.generateAccessToken(user);
@@ -445,6 +450,9 @@ public class AuthServiceImpl implements AuthService {
                         .status(AuthUser.AuthStatus.ACTIVE)
                         .build();
                 user = authUserRepository.save(user);
+
+                // Create UserProfile for the new OAuth user
+                createUserProfile(user);
             }
 
             // Create OAuth connection
@@ -762,5 +770,59 @@ public class AuthServiceImpl implements AuthService {
                         .map(conn -> conn.getProvider().name().toLowerCase())
                         .collect(Collectors.toList()))
                 .build();
+    }
+
+    private void createUserProfile(AuthUser user) {
+        try {
+            // Generate username from email (before @) or use user ID if email is invalid
+            String username = generateUsername(user.getEmail(), user.getId());
+
+            // Use email prefix as display name, or fallback to username
+            String displayName = extractDisplayName(user.getEmail(), username);
+
+            CreateProfileRequest profileRequest = CreateProfileRequest.builder()
+                    .username(username)
+                    .displayName(displayName)
+                    .email(user.getEmail())
+                    .build();
+
+            userProfileService.createProfile(user, profileRequest);
+            log.debug("UserProfile created for user: {}", user.getId());
+        } catch (Exception e) {
+            log.error("Failed to create UserProfile for user {}: {}", user.getId(), e.getMessage());
+            throw new RuntimeException("Failed to create user profile", e);
+        }
+    }
+
+    private String generateUsername(String email, UUID userId) {
+        if (email != null && email.contains("@")) {
+            // Extract username part from email and sanitize it
+            String emailPrefix = email.split("@")[0];
+            // Remove invalid characters (keep only alphanumeric and underscore)
+            String sanitized = emailPrefix.replaceAll("[^a-zA-Z0-9_]", "_");
+            // Ensure minimum length
+            if (sanitized.length() < 3) {
+                sanitized = sanitized + "_" + userId.toString().substring(0, 8).replace("-", "");
+            }
+            // Ensure maximum length
+            if (sanitized.length() > 50) {
+                sanitized = sanitized.substring(0, 50);
+            }
+            return sanitized;
+        }
+        // Fallback to UUID-based username
+        return "user_" + userId.toString().substring(0, 8).replace("-", "");
+    }
+
+    private String extractDisplayName(String email, String username) {
+        if (email != null && email.contains("@")) {
+            String emailPrefix = email.split("@")[0];
+            // Capitalize first letter and replace separators with spaces
+            String displayName = emailPrefix.replaceAll("[._]", " ");
+            if (displayName.length() >= 2) {
+                return Character.toUpperCase(displayName.charAt(0)) + displayName.substring(1);
+            }
+        }
+        return username;
     }
 }

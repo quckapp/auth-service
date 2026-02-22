@@ -5,6 +5,7 @@ import com.quckapp.auth.service.SmsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaOperations;
 import org.springframework.stereotype.Service;
 
@@ -14,10 +15,12 @@ import java.util.UUID;
 /**
  * SMS Service implementation that publishes events to Kafka.
  * The notification-service consumes these events and sends SMS via Twilio/AWS SNS.
+ * Only active when sms.mock.enabled=false
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "sms.mock.enabled", havingValue = "false")
 public class KafkaSmsService implements SmsService {
 
     private final KafkaOperations<String, Object> kafkaOperations;

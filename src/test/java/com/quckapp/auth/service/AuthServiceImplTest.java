@@ -8,6 +8,8 @@ import com.quckapp.auth.domain.repository.OAuthConnectionRepository;
 import com.quckapp.auth.domain.repository.RefreshTokenRepository;
 import com.quckapp.auth.dto.*;
 import com.quckapp.auth.dto.SessionDtos.ActiveSessionDto;
+import com.quckapp.auth.dto.UserProfileDtos.CreateProfileRequest;
+import com.quckapp.auth.dto.UserProfileDtos.UserProfileDto;
 import com.quckapp.auth.kafka.UserEventOperations;
 import com.quckapp.auth.security.jwt.JwtOperations;
 import com.quckapp.auth.service.impl.AuthServiceImpl;
@@ -65,6 +67,9 @@ class AuthServiceImplTest {
     @Mock
     private UserEventOperations userEventPublisher;
 
+    @Mock
+    private UserProfileService userProfileService;
+
     private AuthServiceImpl authService;
 
     private ClientInfo testClientInfo;
@@ -82,7 +87,8 @@ class AuthServiceImplTest {
                 twoFactorService,
                 sessionManagementService,
                 loginHistoryService,
-                userEventPublisher
+                userEventPublisher,
+                userProfileService
         );
 
         testClientInfo = ClientInfo.builder()
@@ -128,6 +134,8 @@ class AuthServiceImplTest {
             when(jwtService.generateAccessToken(any())).thenReturn("access-token");
             when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
             when(jwtService.getAccessTokenExpiration()).thenReturn(3600L);
+            when(userProfileService.createProfile(any(AuthUser.class), any(CreateProfileRequest.class)))
+                    .thenReturn(UserProfileDto.builder().build());
 
             AuthResponse response = authService.register(request, testClientInfo);
 
@@ -177,6 +185,8 @@ class AuthServiceImplTest {
             when(jwtService.generateAccessToken(any())).thenReturn("access-token");
             when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
             when(jwtService.getAccessTokenExpiration()).thenReturn(3600L);
+            when(userProfileService.createProfile(any(AuthUser.class), any(CreateProfileRequest.class)))
+                    .thenReturn(UserProfileDto.builder().build());
 
             authService.register(request, testClientInfo);
 
@@ -986,6 +996,8 @@ class AuthServiceImplTest {
             when(jwtService.generateAccessToken(any())).thenReturn("access-token");
             when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
             when(jwtService.getAccessTokenExpiration()).thenReturn(3600L);
+            when(userProfileService.createProfile(any(AuthUser.class), any(CreateProfileRequest.class)))
+                    .thenReturn(UserProfileDto.builder().build());
 
             AuthResponse response = authService.oauthLogin("google", request, testClientInfo);
 

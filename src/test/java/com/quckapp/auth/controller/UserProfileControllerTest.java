@@ -6,6 +6,7 @@ import com.quckapp.auth.domain.entity.UserRole;
 import com.quckapp.auth.domain.entity.UserStatus;
 import com.quckapp.auth.domain.entity.VisibilityLevel;
 import com.quckapp.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.security.jwt.JwtOperations;
 import com.quckapp.auth.service.LinkedDeviceService;
 import com.quckapp.auth.service.UserProfileService;
 import com.quckapp.auth.service.UserSettingsService;
@@ -32,6 +33,7 @@ import java.util.*;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -63,10 +65,15 @@ class UserProfileControllerTest {
     @Mock
     private LinkedDeviceService deviceService;
 
+    @Mock
+    private JwtOperations jwtOperations;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
     private UUID testUserId;
+    private String testToken;
+    private String authHeader;
     private UserProfileDto testProfileDto;
     private UserSettingsDto testSettingsDto;
     private LinkedDeviceDto testDeviceDto;
@@ -76,12 +83,17 @@ class UserProfileControllerTest {
         objectMapper = new ObjectMapper();
         objectMapper.findAndRegisterModules(); // For Java 8 date/time support
 
-        UserProfileController controller = new UserProfileController(profileService, settingsService, deviceService);
+        UserProfileController controller = new UserProfileController(profileService, settingsService, deviceService, jwtOperations);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new TestExceptionHandler())
                 .build();
 
         testUserId = UUID.randomUUID();
+        testToken = "test-jwt-token";
+        authHeader = "Bearer " + testToken;
+
+        // Mock JWT operations to extract userId from token (lenient because not all tests need it)
+        lenient().when(jwtOperations.extractUserId(testToken)).thenReturn(testUserId.toString());
 
         testProfileDto = UserProfileDto.builder()
                 .id(testUserId)
@@ -148,7 +160,7 @@ class UserProfileControllerTest {
             when(profileService.getProfile(testUserId)).thenReturn(testProfileDto);
 
             mockMvc.perform(get("/v1/users/me")
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(testUserId.toString()))
                     .andExpect(jsonPath("$.username").value("testuser"))
@@ -176,7 +188,7 @@ class UserProfileControllerTest {
                     .thenReturn(updatedProfile);
 
             mockMvc.perform(put("/v1/users/me")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -336,7 +348,7 @@ class UserProfileControllerTest {
             UpdateStatusRequest request = new UpdateStatusRequest(UserStatus.AWAY);
 
             mockMvc.perform(put("/v1/users/me/status")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
@@ -350,7 +362,7 @@ class UserProfileControllerTest {
             UpdateStatusRequest request = new UpdateStatusRequest(UserStatus.OFFLINE);
 
             mockMvc.perform(put("/v1/users/me/status")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
@@ -369,7 +381,7 @@ class UserProfileControllerTest {
             when(settingsService.getSettings(testUserId)).thenReturn(testSettingsDto);
 
             mockMvc.perform(get("/v1/users/me/settings")
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.darkMode").value(true))
                     .andExpect(jsonPath("$.pushNotifications").value(true))
@@ -398,7 +410,7 @@ class UserProfileControllerTest {
                     .thenReturn(updatedSettings);
 
             mockMvc.perform(put("/v1/users/me/settings")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -420,7 +432,7 @@ class UserProfileControllerTest {
             BlockUserRequest request = new BlockUserRequest(blockedUserId);
 
             mockMvc.perform(post("/v1/users/me/blocked-users")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
@@ -434,7 +446,7 @@ class UserProfileControllerTest {
             UUID blockedUserId = UUID.randomUUID();
 
             mockMvc.perform(delete("/v1/users/me/blocked-users/{blockedUserId}", blockedUserId)
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk());
 
             verify(settingsService).unblockUser(testUserId, blockedUserId);
@@ -452,7 +464,7 @@ class UserProfileControllerTest {
             when(settingsService.getBlockedUsers(testUserId)).thenReturn(List.of(blockedUser));
 
             mockMvc.perform(get("/v1/users/me/blocked-users")
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$[0].username").value("blockeduser"));
@@ -466,7 +478,7 @@ class UserProfileControllerTest {
             when(settingsService.getBlockedUsers(testUserId)).thenReturn(List.of());
 
             mockMvc.perform(get("/v1/users/me/blocked-users")
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$").isEmpty());
@@ -500,7 +512,7 @@ class UserProfileControllerTest {
                     .thenReturn(linkedDevice);
 
             mockMvc.perform(post("/v1/users/me/devices")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -516,7 +528,7 @@ class UserProfileControllerTest {
             when(deviceService.getLinkedDevices(testUserId)).thenReturn(List.of(testDeviceDto));
 
             mockMvc.perform(get("/v1/users/me/devices")
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$[0].deviceId").value("device-123"))
@@ -531,7 +543,7 @@ class UserProfileControllerTest {
             String deviceId = "device-123";
 
             mockMvc.perform(delete("/v1/users/me/devices/{deviceId}", deviceId)
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk());
 
             verify(deviceService).unlinkDevice(testUserId, deviceId);
@@ -543,7 +555,7 @@ class UserProfileControllerTest {
             String deviceId = "device-123";
 
             mockMvc.perform(put("/v1/users/me/devices/{deviceId}/activity", deviceId)
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isOk());
 
             verify(deviceService).updateDeviceActivity(testUserId, deviceId);
@@ -558,7 +570,7 @@ class UserProfileControllerTest {
                     .build();
 
             mockMvc.perform(put("/v1/users/me/devices/{deviceId}/fcm-token", deviceId)
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
@@ -656,10 +668,12 @@ class UserProfileControllerTest {
         void shouldBanUser() throws Exception {
             UUID targetUserId = UUID.randomUUID();
             UUID adminUserId = UUID.randomUUID();
+            String adminToken = "admin-jwt-token";
+            when(jwtOperations.extractUserId(adminToken)).thenReturn(adminUserId.toString());
             BanUserRequest request = new BanUserRequest(targetUserId, "Violation of terms");
 
             mockMvc.perform(post("/v1/users/admin/ban")
-                            .header("X-User-ID", adminUserId.toString())
+                            .header("Authorization", "Bearer " + adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
@@ -672,10 +686,12 @@ class UserProfileControllerTest {
         void shouldBanUserWithoutReason() throws Exception {
             UUID targetUserId = UUID.randomUUID();
             UUID adminUserId = UUID.randomUUID();
+            String adminToken = "admin-jwt-token-2";
+            when(jwtOperations.extractUserId(adminToken)).thenReturn(adminUserId.toString());
             BanUserRequest request = new BanUserRequest(targetUserId, null);
 
             mockMvc.perform(post("/v1/users/admin/ban")
-                            .header("X-User-ID", adminUserId.toString())
+                            .header("Authorization", "Bearer " + adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk());
@@ -779,7 +795,7 @@ class UserProfileControllerTest {
                     .thenThrow(new RuntimeException("Settings not found"));
 
             mockMvc.perform(get("/v1/users/me/settings")
-                            .header("X-User-ID", testUserId.toString()))
+                            .header("Authorization", authHeader))
                     .andExpect(status().isNotFound());
         }
 
@@ -794,7 +810,7 @@ class UserProfileControllerTest {
                     .thenThrow(new RuntimeException("Device already linked"));
 
             mockMvc.perform(post("/v1/users/me/devices")
-                            .header("X-User-ID", testUserId.toString())
+                            .header("Authorization", authHeader)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isNotFound());

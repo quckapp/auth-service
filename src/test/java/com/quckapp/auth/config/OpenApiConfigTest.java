@@ -6,21 +6,36 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.core.env.Environment;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for OpenApiConfig
  */
 class OpenApiConfigTest {
 
+    @Mock
+    private Environment environment;
+
     private OpenApiConfig openApiConfig;
 
     @BeforeEach
     void setUp() {
-        openApiConfig = new OpenApiConfig();
+        MockitoAnnotations.openMocks(this);
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"local"});
+        openApiConfig = new OpenApiConfig(environment);
+        // Set default values for @Value fields
+        ReflectionTestUtils.setField(openApiConfig, "serverPort", 8081);
+        ReflectionTestUtils.setField(openApiConfig, "contextPath", "/api/auth");
     }
 
     @Nested
@@ -51,8 +66,11 @@ class OpenApiConfigTest {
             assertThat(authenticatedApi.getPathsToMatch()).contains(
                     "/v1/logout",
                     "/v1/password/change",
+                    "/v1/token/**",
                     "/v1/2fa/**",
-                    "/v1/sessions/**"
+                    "/v1/sessions/**",
+                    "/v1/blocked-users/**",
+                    "/v1/devices/**"
             );
         }
 
@@ -73,7 +91,7 @@ class OpenApiConfigTest {
 
             assertThat(adminApi).isNotNull();
             assertThat(adminApi.getGroup()).isEqualTo("4. Admin");
-            assertThat(adminApi.getPathsToMatch()).containsExactly("/v1/users/admin/**");
+            assertThat(adminApi.getPathsToMatch()).contains("/v1/admin/**", "/v1/users/admin/**");
         }
 
         @Test
@@ -83,7 +101,7 @@ class OpenApiConfigTest {
 
             assertThat(internalApi).isNotNull();
             assertThat(internalApi.getGroup()).isEqualTo("5. Internal");
-            assertThat(internalApi.getPathsToMatch()).contains("/v1/users/internal/**", "/v1/migration/**");
+            assertThat(internalApi.getPathsToMatch()).contains("/v1/internal/**", "/v1/users/internal/**", "/v1/migration/**");
         }
 
         @Test
@@ -108,7 +126,7 @@ class OpenApiConfigTest {
 
             assertThat(openAPI).isNotNull();
             assertThat(openAPI.getComponents()).isNotNull();
-            // Info is set via @OpenAPIDefinition annotation, not programmatically
+            assertThat(openAPI.getInfo()).isNotNull();
         }
 
         @Test
@@ -139,6 +157,104 @@ class OpenApiConfigTest {
             assertThat(apiKey.getType()).isEqualTo(SecurityScheme.Type.APIKEY);
             assertThat(apiKey.getIn()).isEqualTo(SecurityScheme.In.HEADER);
             assertThat(apiKey.getName()).isEqualTo("X-API-Key");
+        }
+    }
+
+    @Nested
+    @DisplayName("Environment-specific Tests")
+    class EnvironmentSpecificTests {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"local", "dev", "qa", "uat1", "uat2", "uat3", "staging", "production", "live"})
+        @DisplayName("should include environment name in API title")
+        void shouldIncludeEnvironmentNameInTitle(String profile) {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{profile});
+            OpenApiConfig config = new OpenApiConfig(environment);
+            ReflectionTestUtils.setField(config, "serverPort", 8081);
+            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+
+            OpenAPI openAPI = config.customOpenAPI();
+
+            assertThat(openAPI.getInfo().getTitle())
+                    .contains("[" + profile.toUpperCase() + "]");
+        }
+
+        @Test
+        @DisplayName("should show LOCAL environment badge for local profile")
+        void shouldShowLocalEnvironmentBadge() {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{"local"});
+
+            OpenAPI openAPI = openApiConfig.customOpenAPI();
+
+            assertThat(openAPI.getInfo().getTitle()).contains("[LOCAL]");
+            assertThat(openAPI.getInfo().getDescription()).contains("LOCAL");
+        }
+
+        @Test
+        @DisplayName("should show warning for production environment")
+        void shouldShowWarningForProduction() {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{"production"});
+            OpenApiConfig config = new OpenApiConfig(environment);
+            ReflectionTestUtils.setField(config, "serverPort", 8081);
+            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+
+            OpenAPI openAPI = config.customOpenAPI();
+
+            assertThat(openAPI.getInfo().getTitle()).contains("[PRODUCTION]");
+            assertThat(openAPI.getInfo().getDescription()).contains("WARNING");
+        }
+
+        @Test
+        @DisplayName("should show warning for live environment")
+        void shouldShowWarningForLive() {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{"live"});
+            OpenApiConfig config = new OpenApiConfig(environment);
+            ReflectionTestUtils.setField(config, "serverPort", 8081);
+            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+
+            OpenAPI openAPI = config.customOpenAPI();
+
+            assertThat(openAPI.getInfo().getTitle()).contains("[LIVE]");
+            assertThat(openAPI.getInfo().getDescription()).contains("WARNING");
+        }
+
+        @Test
+        @DisplayName("should configure servers for local environment")
+        void shouldConfigureServersForLocalEnvironment() {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{"local"});
+
+            OpenAPI openAPI = openApiConfig.customOpenAPI();
+
+            assertThat(openAPI.getServers()).isNotEmpty();
+            assertThat(openAPI.getServers().get(0).getUrl())
+                    .isEqualTo("http://localhost:8081/api/auth");
+            assertThat(openAPI.getServers().get(0).getDescription())
+                    .contains("Current");
+        }
+
+        @Test
+        @DisplayName("should configure servers for staging environment")
+        void shouldConfigureServersForStagingEnvironment() {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{"staging"});
+            OpenApiConfig config = new OpenApiConfig(environment);
+            ReflectionTestUtils.setField(config, "serverPort", 8081);
+            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+
+            OpenAPI openAPI = config.customOpenAPI();
+
+            assertThat(openAPI.getServers()).isNotEmpty();
+            assertThat(openAPI.getServers().get(0).getUrl())
+                    .isEqualTo("https://staging-api.quckapp.com/auth");
+        }
+
+        @Test
+        @DisplayName("should handle empty active profiles")
+        void shouldHandleEmptyActiveProfiles() {
+            when(environment.getActiveProfiles()).thenReturn(new String[]{});
+
+            OpenAPI openAPI = openApiConfig.customOpenAPI();
+
+            assertThat(openAPI.getInfo().getTitle()).contains("[DEFAULT]");
         }
     }
 
@@ -189,6 +305,18 @@ class OpenApiConfigTest {
             OpenApiCustomizer customizer = openApiConfig.globalResponseCustomizer();
             OpenAPI openAPI = new OpenAPI();
             openAPI.setPaths(new io.swagger.v3.oas.models.Paths());
+
+            // Should not throw exception
+            customizer.customise(openAPI);
+
+            assertThat(openAPI).isNotNull();
+        }
+
+        @Test
+        @DisplayName("should handle OpenAPI with null paths")
+        void shouldHandleOpenAPIWithNullPaths() {
+            OpenApiCustomizer customizer = openApiConfig.globalResponseCustomizer();
+            OpenAPI openAPI = new OpenAPI();
 
             // Should not throw exception
             customizer.customise(openAPI);

@@ -1,0 +1,80 @@
+# =============================================================================
+# UAT3 Environment Configuration
+# =============================================================================
+# User Acceptance Testing environment 3
+# Run with: -Dspring.profiles.active=uat3
+# Docker: docker-compose -f docker/docker-compose-uat3.yml up -d
+# Ports: MySQL 3358, Redis 6429, Kafka 29142
+# =============================================================================
+
+server:
+  port: 8081
+  servlet:
+    context-path: /api/auth
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+
+  # MySQL Database - UAT3 Server
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3358}/${DB_NAME:quckapp_auth_uat3}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:uat3_root_secret}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  # Redis - UAT3 Server
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6429}
+      password: ${REDIS_PASSWORD:uat3_redis_secret}
+
+  # Kafka - UAT3 Server
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:29142}
+
+  # Flyway
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+
+# JWT Configuration - UAT3
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 900000      # 15 minutes
+  refresh-token-expiration: 604800000  # 7 days
+  issuer: quckapp-auth-uat3
+
+# OAuth2 Configuration
+oauth2:
+  frontend-callback-url: ${OAUTH2_FRONTEND_CALLBACK_URL:https://uat3.quckapp.com/auth/callback}
+  mobile-deep-link-scheme: ${OAUTH2_MOBILE_SCHEME:quckapp-uat3://}
+
+# Security Configuration
+security:
+  rate-limit:
+    enabled: true
+    login:
+      max-attempts: 5
+      window-seconds: 300
+      block-duration-seconds: 900
+  audit:
+    enabled: true
+    log-successful-auth: true
+    log-failed-auth: true
+  encryption:
+    key: ${ENCRYPTION_KEY}
+
+# Logging
+logging:
+  level:
+    com.quckapp.auth: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN

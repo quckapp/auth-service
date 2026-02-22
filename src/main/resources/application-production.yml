@@ -1,0 +1,115 @@
+# =============================================================================
+# PRODUCTION Environment Configuration
+# =============================================================================
+# Production environment - HANDLE WITH CARE
+# Run with: -Dspring.profiles.active=production
+# Docker: docker-compose -f docker/docker-compose-production.yml up -d
+# Ports: MySQL 3378, Redis 6449, Kafka 29162
+# =============================================================================
+
+server:
+  port: 8081
+  servlet:
+    context-path: /api/auth
+  # Production server settings
+  tomcat:
+    max-threads: 200
+    min-spare-threads: 20
+    accept-count: 100
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+
+  # MySQL Database - Production Server
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3378}/${DB_NAME:quckapp_auth}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&cachePrepStmts=true&useServerPrepStmts=true&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:prod_root_secret}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 20
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        generate_statistics: false
+
+  # Redis - Production Server
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6449}
+      password: ${REDIS_PASSWORD:prod_redis_secret}
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 10
+
+  # Kafka - Production Server
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:29162}
+
+  # Flyway - Disabled in production (run via CI/CD)
+  flyway:
+    enabled: false
+
+# JWT Configuration - Production
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 900000      # 15 minutes
+  refresh-token-expiration: 604800000  # 7 days
+  issuer: quckapp-auth
+
+# OAuth2 Configuration
+oauth2:
+  frontend-callback-url: ${OAUTH2_FRONTEND_CALLBACK_URL:https://app.quckapp.com/auth/callback}
+  mobile-deep-link-scheme: ${OAUTH2_MOBILE_SCHEME:quckapp://}
+
+# Security Configuration - Strict production settings
+security:
+  rate-limit:
+    enabled: true
+    login:
+      max-attempts: 5
+      window-seconds: 300
+      block-duration-seconds: 900
+    api:
+      requests-per-minute: 100
+      requests-per-hour: 1000
+  audit:
+    enabled: true
+    log-successful-auth: true
+    log-failed-auth: true
+  encryption:
+    key: ${ENCRYPTION_KEY}
+
+# Logging - Minimal for production
+logging:
+  level:
+    com.quckapp.auth: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: ERROR
+    root: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator - Restricted in production
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: never

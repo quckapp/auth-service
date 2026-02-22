@@ -6,6 +6,7 @@ import com.quckapp.auth.domain.repository.AuthUserRepository;
 import com.quckapp.auth.security.jwt.JwtOperations;
 import com.quckapp.auth.service.AuthService;
 import com.quckapp.auth.service.SessionManagementService;
+import com.quckapp.auth.service.UserProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -64,6 +65,9 @@ class InternalControllerTest {
     @Mock
     private SessionManagementService sessionManagementService;
 
+    @Mock
+    private UserProfileService userProfileService;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
@@ -74,7 +78,7 @@ class InternalControllerTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.findAndRegisterModules();
-        InternalController controller = new InternalController(authUserRepository, jwtOperations, authService, sessionManagementService);
+        InternalController controller = new InternalController(authUserRepository, jwtOperations, authService, sessionManagementService, userProfileService);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new TestExceptionHandler())

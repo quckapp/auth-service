@@ -1,3 +1,10 @@
+# =============================================================================
+# LOCAL (Mock) Environment Configuration
+# =============================================================================
+# Use this profile for local development with Docker containers
+# Run with: -Dspring.profiles.active=local
+# =============================================================================
+
 server:
   port: 8081
   servlet:
@@ -7,32 +14,78 @@ spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
+
+  # MySQL Database - Local Docker
   datasource:
     url: jdbc:mysql://localhost:3308/quckapp_auth?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
     password: root_secret
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
 
+  # Redis - Local Docker
   data:
     redis:
       host: localhost
       port: 6379
       password: redis_secret
 
+  # Kafka - Local Docker
   kafka:
     bootstrap-servers: localhost:29092
 
+  # Flyway
   flyway:
+    enabled: true
     validate-on-migrate: false
+    baseline-on-migrate: true
 
-# JWT Configuration
+# JWT Configuration - Local Development
 jwt:
   secret: bG9jYWwtZGV2LXNlY3JldC1rZXktZm9yLXRlc3Rpbmctb25seS0zMi1jaGFycw==
-  access-token-expiration: 900000
-  refresh-token-expiration: 604800000
-  issuer: quckapp-auth-local
+  access-token-expiration: 900000      # 15 minutes
+  refresh-token-expiration: 604800000  # 7 days
+  # Must match Elixir realtime-service Guardian issuer for WebSocket auth
+  issuer: quckchat_realtime
 
+# OAuth2 Configuration
+oauth2:
+  frontend-callback-url: http://localhost:3000/auth/callback
+  mobile-deep-link-scheme: quckapp://
+
+# Security - Relaxed for local development
+security:
+  rate-limit:
+    enabled: false
+  audit:
+    enabled: true
+    log-successful-auth: true
+    log-failed-auth: true
+
+# SMS Configuration - Mock for local development
+sms:
+  mock:
+    enabled: true
+
+# API Keys - Local Development
+api-keys:
+  enabled: true
+  header-name: X-API-Key
+  internal-services:
+    - name: nestjs-backend
+      key: local-dev-api-key-change-in-production
+      permissions: [READ_USER, VALIDATE_TOKEN]
+    - name: elixir-realtime
+      key: local-dev-api-key-change-in-production
+      permissions: [READ_USER, VALIDATE_TOKEN]
+
+# Logging - Verbose for debugging
 logging:
   level:
     com.quckapp.auth: DEBUG
     org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

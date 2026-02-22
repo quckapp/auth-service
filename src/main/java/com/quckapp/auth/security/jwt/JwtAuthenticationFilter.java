@@ -12,11 +12,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -33,7 +36,42 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
 
+    /**
+     * Public paths that should skip JWT authentication.
+     * These paths are handled by Spring Security's permitAll() configuration.
+     */
+    private static final List<String> PUBLIC_PATHS = Arrays.asList(
+            "/v1/login",
+            "/v1/login/2fa",
+            "/v1/register",
+            "/v1/token/refresh",
+            "/v1/token/validate",
+            "/v1/password/forgot",
+            "/v1/password/reset",
+            "/v1/auth/phone/**",
+            "/v1/oauth/**",
+            "/oauth2/**",
+            "/login/oauth2/**",
+            "/actuator/**",
+            "/health",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html"
+    );
+
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final JwtService jwtService;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        boolean shouldSkip = PUBLIC_PATHS.stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+        if (shouldSkip) {
+            log.debug("Skipping JWT filter for public path: {}", path);
+        }
+        return shouldSkip;
+    }
 
     @Override
     protected void doFilterInternal(

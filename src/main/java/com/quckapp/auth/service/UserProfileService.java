@@ -3,6 +3,7 @@ package com.quckapp.auth.service;
 import com.quckapp.auth.domain.entity.*;
 import com.quckapp.auth.domain.repository.*;
 import com.quckapp.auth.dto.UserProfileDtos.*;
+import com.quckapp.auth.exception.ValidationException;
 import com.quckapp.auth.kafka.UserEventOperations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -280,7 +281,7 @@ public class UserProfileService {
             profileRepository.findByPhoneNumber(phoneNumber)
                     .filter(p -> excludeUserId == null || !p.getId().equals(excludeUserId))
                     .ifPresent(p -> {
-                        throw new RuntimeException("Phone number already exists");
+                        throw new ValidationException("phoneNumber", "Phone number already exists", "PHONE_EXISTS");
                     });
         }
 
@@ -288,7 +289,7 @@ public class UserProfileService {
             profileRepository.findByUsername(username)
                     .filter(p -> excludeUserId == null || !p.getId().equals(excludeUserId))
                     .ifPresent(p -> {
-                        throw new RuntimeException("Username already exists");
+                        throw new ValidationException("username", "Username already exists", "USERNAME_EXISTS");
                     });
         }
 
@@ -296,7 +297,7 @@ public class UserProfileService {
             profileRepository.findByEmail(email)
                     .filter(p -> excludeUserId == null || !p.getId().equals(excludeUserId))
                     .ifPresent(p -> {
-                        throw new RuntimeException("Email already exists");
+                        throw new ValidationException("email", "Email already exists", "EMAIL_EXISTS");
                     });
         }
     }

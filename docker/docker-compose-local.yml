@@ -1,0 +1,102 @@
+# =============================================================================
+# LOCAL (Mock) Environment - Docker Compose
+# =============================================================================
+# Ports: MySQL 3308, Redis 6379, Kafka 29092, Zookeeper 2181
+# Usage: docker-compose -f docker/docker-compose-local.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # MySQL Database
+  auth-mysql-local:
+    image: mysql:8.0
+    container_name: auth-mysql-local
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: quckapp_auth
+    volumes:
+      - auth_mysql_local_data:/var/lib/mysql
+    networks:
+      - auth-local-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis
+  auth-redis-local:
+    image: redis:7-alpine
+    container_name: auth-redis-local
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis_secret
+    volumes:
+      - auth_redis_local_data:/data
+    networks:
+      - auth-local-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper
+  auth-zookeeper-local:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: auth-zookeeper-local
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - auth_zookeeper_local_data:/var/lib/zookeeper/data
+    networks:
+      - auth-local-network
+    healthcheck:
+      test: echo srvr | nc localhost 2181 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka
+  auth-kafka-local:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: auth-kafka-local
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: auth-zookeeper-local:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://auth-kafka-local:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - auth_kafka_local_data:/var/lib/kafka/data
+    depends_on:
+      auth-zookeeper-local:
+        condition: service_healthy
+    networks:
+      - auth-local-network
+    healthcheck:
+      test: kafka-topics --bootstrap-server localhost:9092 --list || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  auth_mysql_local_data:
+  auth_redis_local_data:
+  auth_zookeeper_local_data:
+  auth_kafka_local_data:
+
+networks:
+  auth-local-network:
+    driver: bridge

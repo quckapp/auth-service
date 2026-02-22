@@ -20,6 +20,9 @@ public class OtpResponse {
     private Integer resendCooldownSeconds;
     private Integer remainingAttempts;
 
+    // For development/testing - OTP code (only included when sms.mock.enabled=true)
+    private String testOtp;
+
     // For verification response
     private Boolean verified;
     private String userId;
@@ -30,12 +33,17 @@ public class OtpResponse {
     private UserDto user;
 
     public static OtpResponse otpSent(String maskedPhone, int expiresInSeconds, int resendCooldown) {
+        return otpSent(maskedPhone, expiresInSeconds, resendCooldown, null);
+    }
+
+    public static OtpResponse otpSent(String maskedPhone, int expiresInSeconds, int resendCooldown, String testOtp) {
         return OtpResponse.builder()
                 .success(true)
                 .message("OTP sent successfully")
                 .maskedPhone(maskedPhone)
                 .expiresInSeconds(expiresInSeconds)
                 .resendCooldownSeconds(resendCooldown)
+                .testOtp(testOtp)
                 .build();
     }
 
@@ -80,6 +88,7 @@ public class OtpResponse {
     public static class UserDto {
         private String id;
         private String phoneNumber;
+        private String username;
         private String displayName;
         private String email;
         private String avatar;

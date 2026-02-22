@@ -181,6 +181,7 @@ public class AuthController {
     // ============================================
     // Helpers
     // ============================================
+    // Note: Session endpoints moved to SessionController (/v1/sessions)
 
     private String extractToken(String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {

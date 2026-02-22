@@ -12,6 +12,7 @@ services:
       - "8081:8081"
     environment:
       - PORT=8081
+      - SMS_MOCK_ENABLED=true
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_NAME=quckapp_auth

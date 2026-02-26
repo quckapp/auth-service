@@ -73,7 +73,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
                         // API Docs & Swagger
-                        .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/v1/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/swagger-ui.html").permitAll()
                         // Internal endpoints (authenticated via API Key)

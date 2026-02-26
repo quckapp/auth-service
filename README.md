@@ -43,7 +43,7 @@ Authentication and authorization microservice for QuckApp built with Spring Boot
 # Start all dependencies (MySQL, Redis, Kafka, Zookeeper)
 docker-compose up -d
 
-# The service will be available at http://localhost:8081/api/auth
+# The service will be available at http://localhost:8081/api/v1/auth
 ```
 
 ### Local Development
@@ -97,11 +97,11 @@ export JWT_SECRET=your-256-bit-secret-key-change-in-production
 
 ## API Documentation
 
-**Base URL:** `http://localhost:8081/api/auth`
+**Base URL:** `http://localhost:8081/api/v1/auth`
 
-**Swagger UI:** http://localhost:8081/api/auth/swagger-ui.html
+**Swagger UI:** http://localhost:8081/api/v1/auth/swagger-ui.html
 
-**OpenAPI Spec:** http://localhost:8081/api/auth/v3/api-docs
+**OpenAPI Spec:** http://localhost:8081/api/v1/auth/api-docs
 
 ### Authentication Endpoints
 
@@ -228,7 +228,7 @@ export JWT_SECRET=your-256-bit-secret-key-change-in-production
 ### Register
 
 ```bash
-curl -X POST http://localhost:8081/api/auth/v1/register \
+curl -X POST http://localhost:8081/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -239,7 +239,7 @@ curl -X POST http://localhost:8081/api/auth/v1/register \
 ### Login
 
 ```bash
-curl -X POST http://localhost:8081/api/auth/v1/login \
+curl -X POST http://localhost:8081/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -267,7 +267,7 @@ curl -X POST http://localhost:8081/api/auth/v1/login \
 ### Refresh Token
 
 ```bash
-curl -X POST http://localhost:8081/api/auth/v1/token/refresh \
+curl -X POST http://localhost:8081/api/v1/auth/token/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refreshToken": "your-refresh-token"
@@ -278,14 +278,14 @@ curl -X POST http://localhost:8081/api/auth/v1/token/refresh \
 
 ```bash
 # Request OTP
-curl -X POST http://localhost:8081/api/auth/v1/auth/phone/request-otp \
+curl -X POST http://localhost:8081/api/v1/auth/phone/request-otp \
   -H "Content-Type: application/json" \
   -d '{
     "phoneNumber": "+1234567890"
   }'
 
 # Verify and Login
-curl -X POST http://localhost:8081/api/auth/v1/auth/phone/login \
+curl -X POST http://localhost:8081/api/v1/auth/phone/login \
   -H "Content-Type: application/json" \
   -d '{
     "phoneNumber": "+1234567890",
@@ -296,7 +296,7 @@ curl -X POST http://localhost:8081/api/auth/v1/auth/phone/login \
 ## Health Check
 
 ```bash
-curl http://localhost:8081/api/auth/actuator/health
+curl http://localhost:8081/api/v1/auth/actuator/health
 ```
 
 **Response:**
@@ -308,7 +308,7 @@ curl http://localhost:8081/api/auth/actuator/health
 
 ## Metrics
 
-Prometheus metrics available at: `http://localhost:8081/api/auth/actuator/prometheus`
+Prometheus metrics available at: `http://localhost:8081/api/v1/auth/actuator/prometheus`
 
 ## Testing
 

@@ -40,7 +40,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             "/actuator/health",
             "/actuator/info",
             "/health",
-            "/v3/api-docs",
+            "/v1/api-docs",
             "/swagger-ui"
     );
 

@@ -147,7 +147,7 @@ class RateLimitFilterTest {
         @DisplayName("should skip when rate limiting is disabled globally")
         void shouldSkipWhenDisabledGlobally() throws ServletException, IOException {
             config.setEnabled(false);
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
             filter.doFilterInternal(request, response, filterChain);
@@ -159,7 +159,7 @@ class RateLimitFilterTest {
         @DisplayName("should skip when IP rate limiting is disabled")
         void shouldSkipWhenIpDisabled() throws ServletException, IOException {
             config.getIp().setEnabled(false);
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
             filter.doFilterInternal(request, response, filterChain);
@@ -172,8 +172,8 @@ class RateLimitFilterTest {
                 "/actuator/health",
                 "/actuator/info",
                 "/health",
-                "/v3/api-docs",
-                "/v3/api-docs/swagger-config",
+                "/v1/api-docs",
+                "/v1/api-docs/swagger-config",
                 "/swagger-ui",
                 "/swagger-ui/index.html"
         })
@@ -196,7 +196,7 @@ class RateLimitFilterTest {
         @DisplayName("should allow request when under limit")
         void shouldAllowWhenUnderLimit() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(55));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/users");
             request.setRemoteAddr("192.168.1.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -211,7 +211,7 @@ class RateLimitFilterTest {
         @DisplayName("should deny request when limit exceeded")
         void shouldDenyWhenLimitExceeded() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.exceeded(45));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/users");
             request.setRemoteAddr("192.168.1.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -235,7 +235,7 @@ class RateLimitFilterTest {
         @DisplayName("should add rate limit headers on allowed request")
         void shouldAddHeadersOnAllowedRequest() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(30));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/data");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/data");
             request.setRemoteAddr("10.0.0.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -255,7 +255,7 @@ class RateLimitFilterTest {
         @DisplayName("should extract IP from X-Forwarded-For header")
         void shouldExtractFromXForwardedFor() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(50));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.addHeader("X-Forwarded-For", "203.0.113.50, 70.41.3.18, 192.168.1.1");
             request.setRemoteAddr("127.0.0.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
@@ -269,7 +269,7 @@ class RateLimitFilterTest {
         @DisplayName("should extract IP from X-Real-IP header when X-Forwarded-For absent")
         void shouldExtractFromXRealIp() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(50));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.addHeader("X-Real-IP", "198.51.100.25");
             request.setRemoteAddr("127.0.0.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
@@ -283,7 +283,7 @@ class RateLimitFilterTest {
         @DisplayName("should use remote address when no proxy headers")
         void shouldUseRemoteAddr() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(50));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.setRemoteAddr("10.20.30.40");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -296,7 +296,7 @@ class RateLimitFilterTest {
         @DisplayName("should prefer X-Forwarded-For over X-Real-IP")
         void shouldPreferXForwardedFor() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(50));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.addHeader("X-Forwarded-For", "203.0.113.50");
             request.addHeader("X-Real-IP", "198.51.100.25");
             request.setRemoteAddr("127.0.0.1");
@@ -311,7 +311,7 @@ class RateLimitFilterTest {
         @DisplayName("should handle empty X-Forwarded-For gracefully")
         void shouldHandleEmptyXForwardedFor() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(50));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.addHeader("X-Forwarded-For", "");
             request.setRemoteAddr("192.168.1.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
@@ -330,7 +330,7 @@ class RateLimitFilterTest {
         @DisplayName("should return correct JSON structure on rate limit")
         void shouldReturnCorrectJsonStructure() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.exceeded(120));
-            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/data");
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/data");
             request.setRemoteAddr("192.168.1.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -355,7 +355,7 @@ class RateLimitFilterTest {
         @DisplayName("should set all required headers on rate limit")
         void shouldSetAllHeadersOnRateLimit() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.exceeded(60));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.setRemoteAddr("192.168.1.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -371,7 +371,7 @@ class RateLimitFilterTest {
         @DisplayName("should not set reset headers when allowed")
         void shouldNotSetResetHeadersWhenAllowed() throws ServletException, IOException {
             fakeRateLimitService.setNextResult(RateLimitResult.allowed(45));
-            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/test");
             request.setRemoteAddr("192.168.1.1");
             MockHttpServletResponse response = new MockHttpServletResponse();
 

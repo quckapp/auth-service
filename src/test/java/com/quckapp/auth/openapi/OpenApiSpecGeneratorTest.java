@@ -72,7 +72,7 @@ class OpenApiSpecGeneratorTest {
 
         openApiConfig = new OpenApiConfig(environment);
         ReflectionTestUtils.setField(openApiConfig, "serverPort", 8081);
-        ReflectionTestUtils.setField(openApiConfig, "contextPath", "/api/auth");
+        ReflectionTestUtils.setField(openApiConfig, "contextPath", "/api/v1/auth");
 
         openAPI = openApiConfig.customOpenAPI();
 
@@ -91,8 +91,8 @@ class OpenApiSpecGeneratorTest {
 
         // Set up servers
         openAPI.setServers(List.of(
-                new Server().url("/api/auth").description("Auth Service Base Path"),
-                new Server().url("http://localhost:8081/api/auth").description("Local Development"),
+                new Server().url("/api/v1/auth").description("Auth Service Base Path"),
+                new Server().url("http://localhost:8081/api/v1/auth").description("Local Development"),
                 new Server().url("https://api.quckapp.com/auth").description("Production")
         ));
 

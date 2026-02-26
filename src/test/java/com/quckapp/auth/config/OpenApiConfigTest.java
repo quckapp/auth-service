@@ -35,7 +35,7 @@ class OpenApiConfigTest {
         openApiConfig = new OpenApiConfig(environment);
         // Set default values for @Value fields
         ReflectionTestUtils.setField(openApiConfig, "serverPort", 8081);
-        ReflectionTestUtils.setField(openApiConfig, "contextPath", "/api/auth");
+        ReflectionTestUtils.setField(openApiConfig, "contextPath", "/api/v1/auth");
     }
 
     @Nested
@@ -171,7 +171,7 @@ class OpenApiConfigTest {
             when(environment.getActiveProfiles()).thenReturn(new String[]{profile});
             OpenApiConfig config = new OpenApiConfig(environment);
             ReflectionTestUtils.setField(config, "serverPort", 8081);
-            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+            ReflectionTestUtils.setField(config, "contextPath", "/api/v1/auth");
 
             OpenAPI openAPI = config.customOpenAPI();
 
@@ -196,7 +196,7 @@ class OpenApiConfigTest {
             when(environment.getActiveProfiles()).thenReturn(new String[]{"production"});
             OpenApiConfig config = new OpenApiConfig(environment);
             ReflectionTestUtils.setField(config, "serverPort", 8081);
-            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+            ReflectionTestUtils.setField(config, "contextPath", "/api/v1/auth");
 
             OpenAPI openAPI = config.customOpenAPI();
 
@@ -210,7 +210,7 @@ class OpenApiConfigTest {
             when(environment.getActiveProfiles()).thenReturn(new String[]{"live"});
             OpenApiConfig config = new OpenApiConfig(environment);
             ReflectionTestUtils.setField(config, "serverPort", 8081);
-            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+            ReflectionTestUtils.setField(config, "contextPath", "/api/v1/auth");
 
             OpenAPI openAPI = config.customOpenAPI();
 
@@ -227,7 +227,7 @@ class OpenApiConfigTest {
 
             assertThat(openAPI.getServers()).isNotEmpty();
             assertThat(openAPI.getServers().get(0).getUrl())
-                    .isEqualTo("http://localhost:8081/api/auth");
+                    .isEqualTo("http://localhost:8081/api/v1/auth");
             assertThat(openAPI.getServers().get(0).getDescription())
                     .contains("Current");
         }
@@ -238,7 +238,7 @@ class OpenApiConfigTest {
             when(environment.getActiveProfiles()).thenReturn(new String[]{"staging"});
             OpenApiConfig config = new OpenApiConfig(environment);
             ReflectionTestUtils.setField(config, "serverPort", 8081);
-            ReflectionTestUtils.setField(config, "contextPath", "/api/auth");
+            ReflectionTestUtils.setField(config, "contextPath", "/api/v1/auth");
 
             OpenAPI openAPI = config.customOpenAPI();
 

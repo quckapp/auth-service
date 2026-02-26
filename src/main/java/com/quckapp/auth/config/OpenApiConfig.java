@@ -33,7 +33,7 @@ public class OpenApiConfig {
     @Value("${server.port:8081}")
     private int serverPort;
 
-    @Value("${server.servlet.context-path:/api/auth}")
+    @Value("${server.servlet.context-path:/api/v1/auth}")
     private String contextPath;
 
     public OpenApiConfig(Environment environment) {

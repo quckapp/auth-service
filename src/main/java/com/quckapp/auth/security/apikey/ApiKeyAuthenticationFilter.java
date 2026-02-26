@@ -37,9 +37,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             "/v1/internal/",
             "/v1/migration/",
             "/v1/users/internal/",
-            "/api/auth/v1/internal/",
-            "/api/auth/v1/migration/",
-            "/api/auth/v1/users/internal/"
+            "/api/v1/auth/internal/",
+            "/api/v1/auth/migration/",
+            "/api/v1/auth/users/internal/"
     );
 
     private final ApiKeyRepository apiKeyRepository;

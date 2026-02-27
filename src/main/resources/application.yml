@@ -98,6 +98,10 @@ spring:
             jwk-set-uri: https://appleid.apple.com/auth/keys
             user-name-attribute: sub
 
+promotion:
+  service-name: auth-service
+  environment: ${ENVIRONMENT:local}
+
 # OAuth2 Custom Configuration
 oauth2:
   default-success-url: /

@@ -116,6 +116,13 @@
             <artifactId>flyway-mysql</artifactId>
         </dependency>
 
+        <!-- Promotion Gate -->
+        <dependency>
+            <groupId>com.quckapp</groupId>
+            <artifactId>promotion-gate-spring</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+
         <!-- Kafka -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
